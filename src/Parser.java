@@ -11,6 +11,7 @@ public class Parser {
     private String curLval; // 当前lval
     private int loopLayer; // 当前循环层数
     private int curValDimension; // 当前变量维数
+    private String btype; // 当前btype，目前只有int类型
 
     // 表达式返回值
 
@@ -59,6 +60,7 @@ public class Parser {
 
     private boolean bType() {
         if (tag.equals("INTTK")) {
+            btype = curToken;
             getToken();
             return true;
         }
@@ -101,9 +103,15 @@ public class Parser {
         } else {
             return false;
         }
+        int dimen1 = 0;
+        int dimen2 = 0;
         while (tag.equals("LBRACK")) {
             getToken();
-            constExp();
+            if (dimen == 0) {
+                dimen1 = Integer.parseInt(constExp());
+            } else {
+                dimen2 = Integer.parseInt(constExp());
+            }
             if (tag.equals("RBRACK")) {
                 getToken();
             } else {
@@ -112,20 +120,28 @@ public class Parser {
             dimen++;
         }
         if (curTable != null) {
-            if (!curTable.addVal(name,true,dimen)) {
+            if (!curTable.addVal(name,true,dimen,dimen1,dimen2)) {
                 error("b");
             }
         } else {
-            if (!SymbolTable.addGlobalVal(name, true, dimen)) {
+            if (!SymbolTable.addGlobalVal(name, true, dimen,dimen1,dimen2)) {
                 error("b");
             }
         }
+        Val val;
+        // 给后面初始化传常量
+        if (curTable == null) {
+            val = new SymbolTable(null).findVal(name);
+        } else {
+            val = curTable.findVal(name);
+        }
+
         if (tag.equals("ASSIGN")) {
             getToken();
         } else {
             error("const val not assgin init value");
         }
-        if (constInitVal()) {
+        if (constInitVal(val)) {
             FileStream.output("<ConstDef>");
             return true;
         } else {
@@ -134,25 +150,27 @@ public class Parser {
         }
     }
 
-    private boolean constInitVal() {
-        if (constExp()) {
+    private boolean constInitVal(Val val) {
+        String constExp = constExp();
+        if (constExp != null) {
             FileStream.output("<ConstInitVal>");
+            val.setValue(Integer.parseInt(constExp));
             return true;
         } else {
             if (curToken.equals("{")) {
                 getToken();
-                if (constInitVal()) {
+                if (constInitVal(val)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        constInitVal();
+                        constInitVal(val);
                     }
                 } else {
                     error("lack }");
                 }
-                while (constInitVal()) {
+                while (constInitVal(val)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        constInitVal();
+                        constInitVal(val);
                     }
                 }
                 if (curToken.equals("}")) {
@@ -198,9 +216,15 @@ public class Parser {
         } else {
             return false;
         }
+        int dimen1 = 0;
+        int dimen2 = 0;
         while (tag.equals("LBRACK")) {
             getToken();
-            constExp();
+            if (dimen == 0) {
+                dimen1 = Integer.parseInt(constExp());
+            } else {
+                dimen2 = Integer.parseInt(constExp());
+            }
             if (tag.equals("RBRACK")) {
                 getToken();
             } else {
@@ -209,17 +233,18 @@ public class Parser {
             dimen++;
         }
         if (curTable != null) {
-            if (!curTable.addVal(name,false,dimen)) {
+            if (!curTable.addVal(name,false,dimen,dimen1,dimen2)) {
                 error("b");
             }
         } else {
-            if (!SymbolTable.addGlobalVal(name, false, dimen)) {
+            if (!SymbolTable.addGlobalVal(name, false, dimen,dimen1,dimen2)) {
                 error("b");
             }
         }
+        MiddleCode.varDecl(btype,name,dimen1,dimen2);
         if (tag.equals("ASSIGN")) {
             getToken();
-            if (initVal()) {
+            if (initVal(dimen1,dimen2)) {
                 FileStream.output("<VarDef>");
                 return true;
             } else {
@@ -232,25 +257,27 @@ public class Parser {
         }
     }
 
-    private boolean initVal() {
-        if (exp()) {
+    private boolean initVal(int dimen1,int dimen2) {
+        String exp = exp();
+        if (exp != null) {
             FileStream.output("<InitVal>");
+            MiddleCode.varInit(dimen1,dimen2,exp);
             return true;
         } else {
             if (curToken.equals("{")) {
                 getToken();
-                if (initVal()) {
+                if (initVal(dimen1,dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        initVal();
+                        initVal(dimen1,dimen2);
                     }
                 } else {
                     error("no init value");
                 }
-                while (initVal()) {
+                while (initVal(dimen1,dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        initVal();
+                        initVal(dimen1,dimen2);
                     }
                 }
                 if (curToken.equals("}")) {
@@ -271,6 +298,7 @@ public class Parser {
             String name;
             if (tag.equals("IDENFR")) {
                 name = curToken;
+                MiddleCode.funcDecl(curReturnType,name);
                 getToken();
                 if (tag.equals("LPARENT")) {
                     getToken();
@@ -359,18 +387,21 @@ public class Parser {
         if (bType()) {
             String name;
             int dimen = 0;
+            int dimen1 = 0;
+            int dimen2 = 0;
             if (tag.equals("IDENFR")) {
                 name = curToken;
                 getToken();
                 if (curToken.equals("[")) {
                     getToken();
                     dimen++;
+                    dimen1 = 1;
                     if (curToken.equals("]")) {
                         getToken();
                         while (curToken.equals("[")) {
                             dimen++;
                             getToken();
-                            constExp();
+                            dimen2 = Integer.parseInt(constExp());
                             if (curToken.equals("]")) {
                                 getToken();
                             } else {
@@ -381,9 +412,10 @@ public class Parser {
                         error("k");
                     }
                 }
-                if (!SymbolTable.addPara(name,dimen)) {
+                if (!SymbolTable.addPara(name,dimen,0,dimen2)) {
                     error("b");
                 }
+                MiddleCode.paraDecl(btype,name,dimen1,dimen2);
                 FileStream.output("<FuncFParam>");
                 return true;
             }
@@ -422,20 +454,23 @@ public class Parser {
     }
 
     private boolean stmt() {
+        String exp = null;
         if (lvalAssign()) {
             hasReturn = false;
-            lval();
+            String lval = lval();
             if (curTable.isConstVal(curLval)) {
                 error("h");
             }
             if (curToken.equals("=")) {
                 getToken();
-                if (exp()) {
+                exp = exp();
+                if (exp != null) {
                     if (curToken.equals(";")) {
                         getToken();
                     } else {
                         error("i");
                     }
+                    MiddleCode.algorithmOp(lval,exp,null);
                 } else if (tag.equals("GETINTTK")) {
                     getToken();
                     if (curToken.equals("(")) {
@@ -455,7 +490,8 @@ public class Parser {
             }
             FileStream.output("<Stmt>");
             return true;
-        } else if (exp() || curToken.equals(";")) {
+        } else if (exp() != null || curToken.equals(";")) {
+            // 没有任何语义用处
             hasReturn = false;
             if (curToken.equals(";")) {
                 getToken();
@@ -522,7 +558,8 @@ public class Parser {
             if (curLayer == 1) {
                 hasReturn = true;
             }
-            if (exp()) {
+            exp = exp();
+            if (exp != null) {
                 if (curReturnType.equals("void")) {
                     error("f");
                 }
@@ -533,6 +570,7 @@ public class Parser {
                 error("i");
             }
             FileStream.output("<Stmt>");
+            MiddleCode.funcReturn(exp);
             return true;
         } else if (tag.equals("PRINTFTK")) {
             hasReturn = false;
@@ -568,12 +606,13 @@ public class Parser {
         return false;
     }
 
-    private boolean exp() {
-        if (addExp()) {
+    private String exp() {
+        String addExp = addExp();
+        if (addExp!= null) {
             FileStream.output("<Exp>");
-            return true;
+            return addExp;
         }
-        return false;
+        return null;
     }
 
     private boolean cond() {
@@ -588,20 +627,37 @@ public class Parser {
         return tag.equals("IDENFR") && lexer.watchAssign().equals("=");
     }
 
-    private boolean lval() {
+    private String lval() {
         if (tag.equals("IDENFR")) {
             curLval = curToken;
-            Val val = curTable.findVal(curLval);
+            Val val;
+            if (curTable == null) {
+                val = new SymbolTable(null).findVal(curLval);
+            } else {
+                val = curTable.findVal(curLval);
+            }
+            // get the second dimen
+            int coDimen = 0;
             if (val == null) {
                 error("c");
             } else {
+                coDimen = val.getCoDimen();
                 curValDimension = val.getDimension();
             }
             getToken();
+            String dimen1 = null;
+            String dimen2 = null;
+            int i = 1;
             while (curToken.equals("[")) {
                 curValDimension--;
                 getToken();
-                exp();
+                if (i == 1) {
+                    dimen1 = exp();
+                    i++;
+                } else {
+                    dimen2 = exp();
+                }
+
                 if (curToken.equals("]")) {
                     getToken();
                 } else {
@@ -609,39 +665,66 @@ public class Parser {
                 }
             }
             FileStream.output("<LVal>");
-            return true;
+            try {
+                if (!val.isConst()) {
+                    throw new Exception();
+                }
+                int i1;
+                int i2;
+                if (dimen1 == null) {
+                    i1 = -1;
+                } else {
+                    i1 = Integer.parseInt(dimen1);
+                }
+                if (dimen2 == null) {
+                    i2 = -1;
+                } else {
+                    i2 = Integer.parseInt(dimen2);
+                }
+                return String.valueOf(val.getValue(i1,i2));
+            } catch (Exception e) {
+                return MiddleCode.deDimen(curLval,dimen1,dimen2,coDimen);
+            }
         }
-        return false;
+        return null;
     }
 
-    private boolean primaryExp() {
+    private String primaryExp() {
+        String lval = null;
+        String number = null;
         if (curToken.equals("(")) {
             getToken();
-            exp();
+            String primaryExp = exp();
             if (curToken.equals(")")) {
                 getToken();
             } else {
                 error("j");
             }
             FileStream.output("<PrimaryExp>");
-            return true;
-        } else if (lval() || number()) {
+            return primaryExp;
+        } else if ((lval = lval()) != null) {
             FileStream.output("<PrimaryExp>");
-            return true;
+            return lval;
+        } else if ((number = number()) != null) {
+            FileStream.output("<PrimaryExp>");
+            return number;
         }
-        return false;
+        return null;
     }
 
-    private boolean number() {
+    private String number() {
         if (tag.equals("INTCON")) {
+            String num = curToken;
             getToken();
             FileStream.output("<Number>");
-            return true;
+            return num;
         }
-        return false;
+        return null;
     }
 
-    private boolean unaryExp() {
+    private String unaryExp() {
+        String primaryExp = null;
+        String unaryOp = null;
         if (tag.equals("IDENFR") && lexer.watchNext() == '(') {
             // 看是函数还是变量
             String name = curToken;
@@ -673,36 +756,39 @@ public class Parser {
             }
             curTable.clearPartPara();
             FileStream.output("<UnaryExp>");
-            return true;
-        } else if (primaryExp()) {
+            MiddleCode.callFunc(name);
+            return "@RETURN";
+        } else if ((primaryExp = primaryExp()) != null) {
             FileStream.output("<UnaryExp>");
-            return true;
-        } else if (unaryOp()) {
-            if (unaryExp()) {
-                FileStream.output("<UnaryExp>");
-                return true;
-            }
+            return primaryExp;
+        } else if ((unaryOp = unaryOp()) != null) {
+            String unaryExp = unaryExp();
+            FileStream.output("<UnaryExp>");
+            return MiddleCode.algorithmOp(unaryExp,null,unaryOp);
         }
-        return false;
+        return null;
     }
 
-    private boolean unaryOp() {
+    private String unaryOp() {
+        String token = curToken;
         if (curToken.equals("+") || curToken.equals("-") || curToken.equals("!")) {
             getToken();
             FileStream.output("<UnaryOp>");
-            return true;
+            return token;
         }
-        return false;
+        return null;
     }
 
     private boolean funcRParams() {
-        if (exp()) {
-            curTable.addPartPara(null,curValDimension);
+        String exp = exp();
+        if (exp != null) {
+            curTable.addPartPara(null,curValDimension,0,0);
             curValDimension = 0;
+            MiddleCode.rParaDecl(exp);
             while (curToken.equals(",")) {
                 getToken();
                 exp();
-                curTable.addPartPara(null,curValDimension);
+                curTable.addPartPara(null,curValDimension,0,0);
                 curValDimension = 0;
             }
             FileStream.output("<FuncRParams>");
@@ -711,33 +797,42 @@ public class Parser {
         return false;
     }
 
-    private boolean mulExp() {
-        if (unaryExp()) {
+    private String mulExp() {
+        String unaryExp = unaryExp();
+        if (unaryExp != null) {
             FileStream.output("<MulExp>");
+            String token = null;
+            String mul = null;
             if (curToken.equals("*") || curToken.equals("/") || curToken.equals("%")) {
+                token = curToken;
                 getToken();
-                mulExp();
+                mul = mulExp();
             }
-
-            return true;
+            return MiddleCode.algorithmOp(unaryExp,mul,token);
         }
-        return false;
+        return null;
     }
 
-    private boolean addExp() {
-        if (mulExp()) {
+    private String addExp() {
+        String mulExp = mulExp();
+        if (mulExp != null) {
             FileStream.output("<AddExp>");
+            String token = null;
+            String add = null;
             if (curToken.equals("+") || curToken.equals("-")) {
+                token = curToken;
                 getToken();
-                addExp();
+                add = addExp();
             }
-            return true;
+            return MiddleCode.algorithmOp(mulExp,add,token);
         }
-        return false;
+        return null;
     }
 
     private boolean relExp() {
-        if (addExp()) {
+        String addExp = addExp();
+        //TODO something is not finished
+        if (addExp != null) {
             FileStream.output("<RelExp>");
             if (curToken.equals("<") || curToken.equals(">") || curToken.equals("<=") || curToken.equals(">=")) {
                 getToken();
@@ -784,12 +879,13 @@ public class Parser {
         return false;
     }
 
-    private boolean constExp() {
-        if (addExp()) {
+    private String constExp() {
+        String addExp = addExp();
+        if (addExp != null) {
             FileStream.output("<ConstExp>");
-            return true;
+            return addExp;
         }
-        return false;
+        return null;
     }
 
     private void getToken() {

@@ -1,8 +1,11 @@
 public class MiddleCode {
     private static int i = 0;
+    private static String varName = null;
+    private static int varDimen1 = 0;
+    private static int varDimen2 = 0;
 
     public static void funcDecl(String type, String name) {
-        FileStream.middleCodeOutput(type + " " + name);
+        FileStream.middleCodeOutput("func " + type + " " + name);
     }
 
     public static void paraDecl(String type, String name, int dimen1, int dimen2) {
@@ -16,7 +19,9 @@ public class MiddleCode {
         }
     }
 
-    public static void rParaDecl(String name, String dimen1, String dimen2) {
+    public static void rParaDecl(String name) {
+        // no dimen1 , dimen2
+        /*
         if (dimen1 != null && dimen2 != null) {
             FileStream.middleCodeOutput("push " + name + "[" + dimen1 + "]" + "[" + dimen2 + "]");
         } else if (dimen1 != null) {
@@ -24,15 +29,20 @@ public class MiddleCode {
         } else {
             FileStream.middleCodeOutput("push " + name);
         }
+        */
+        FileStream.middleCodeOutput("push " + name);
+
     }
 
     public static void callFunc(String name) {
         FileStream.middleCodeOutput("call " + name);
     }
 
+    /*
     public static void getReturnValue(String name) {
         FileStream.middleCodeOutput(name + " = @RETURN");
     }
+    */
 
     public static void funcReturn(String name) {
         if (name != null) {
@@ -43,14 +53,37 @@ public class MiddleCode {
 
     }
 
-    public static void varDecl(String type, String var, String dimen1, String dimen2) {
+    public static void varDecl(String type, String var, int dimen1, int dimen2) {
         // 常量不需要声明
-        if (dimen1 != null && dimen2 != null) {
+        if (dimen1 != 0 && dimen2 != 0) {
             FileStream.middleCodeOutput("var " + type + " " + var + "[" + dimen1 + "][" + dimen2 + "]");
-        } else if (dimen1 != null) {
+        } else if (dimen1 != 0) {
             FileStream.middleCodeOutput("var " + type + " " + var + "[" + dimen1 + "]");
         } else {
             FileStream.middleCodeOutput("var " + type + " " + var);
+        }
+        varName = var;
+    }
+
+    public static void varInit(int dimen1, int dimen2,String exp) {
+        if (dimen1 == 0) {
+            FileStream.middleCodeOutput(varName + " = " + exp);
+        } else if (dimen2 == 0) {
+            FileStream.middleCodeOutput(varName + "[" + varDimen1 + "]" + " = " + exp);
+            varDimen1++;
+            if (varDimen1 == dimen1) {
+                varDimen1 = 0;
+            }
+        } else {
+            FileStream.middleCodeOutput(varName + "[" + varDimen1 + "][" + varDimen2 + "] = " + exp);
+            varDimen2++;
+            if (varDimen2 == dimen2) {
+                varDimen1++;
+                varDimen2 = 0;
+            }
+            if (varDimen1 == dimen1) {
+                varDimen1 = 0;
+            }
         }
     }
 
@@ -87,6 +120,15 @@ public class MiddleCode {
                     return "error";
             }
         } catch (Exception e) {
+            if (op == null && res2 != null) {
+                // 赋值语句
+                FileStream.middleCodeOutput(res1 + " = " + res2);
+                return null;
+            }
+            if (op == null) {
+                // 无事发生
+                return res1;
+            }
             String des = "@t" + i;
             i++;
             if (res2 != null) {

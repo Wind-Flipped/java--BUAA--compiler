@@ -144,6 +144,8 @@ class Val {
     private boolean isConst;
     private ArrayList<Integer> dimension;
     private int[] values;
+    private int constDimen1 = 0;
+    private int constDimen2 = 0;
 
     @Override
     public boolean equals(Object o) {
@@ -163,7 +165,13 @@ class Val {
         this.isConst = isConst;
         this.name = name;
         dimension = new ArrayList<>();
-        values = new int[dimen1 * dimen2];
+        if (dimen == 0) {
+            values = new int[1];
+        } else if (dimen == 1) {
+            values = new int[dimen1];
+        } else {
+            values = new int[dimen1 * dimen2];
+        }
         if (dimen >= 1) {
             dimension.add(dimen1);
         }
@@ -172,20 +180,23 @@ class Val {
         }
     }
 
-    public void setValue(int dimen1, int dimen2, int value) {
+    public void setValue(int value) {
         // 行 列 default is -1
-        if (dimen1 == -1) {
-            if (dimen2 == -1) {
-                values[0] = value;
-            } else {
-                values[dimen2] = value;
+        if (getDimension() == 2) {
+            values[constDimen1*dimension.get(1)+constDimen2] = value;
+            constDimen2++;
+            if (constDimen2 == dimension.get(1)) {
+                constDimen1++;
             }
+        } else if (getDimension() == 1) {
+            values[constDimen1] = value;
+            constDimen1++;
         } else {
-            values[dimen1*dimension.get(1)+dimen2] = value;
+            values[0] = value;
         }
     }
 
-    public int getValue(int dimen1, int dimen2, int value) {
+    public int getValue(int dimen1, int dimen2) {
         // 行 列 default is -1
         if (dimen1 == -1) {
             if (dimen2 == -1) {
@@ -204,6 +215,14 @@ class Val {
 
     public int getDimension() {
         return dimension.size();
+    }
+
+    public int getCoDimen() {
+        if (dimension.size() == 2) {
+            return dimension.get(1);
+        } else {
+            return 0;
+        }
     }
 
     public String getName() {
