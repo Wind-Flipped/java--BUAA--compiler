@@ -198,11 +198,11 @@ class Val {
 
     public int getValue(int dimen1, int dimen2) {
         // 行 列 default is -1
-        if (dimen1 == -1) {
-            if (dimen2 == -1) {
+        if (dimen2 == -1) {
+            if (dimen1 == -1) {
                 return values[0];
             } else {
-                return values[dimen2];
+                return values[dimen1];
             }
         } else {
             return values[dimen1*dimension.get(1)+dimen2];

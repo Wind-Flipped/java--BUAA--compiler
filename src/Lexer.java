@@ -12,6 +12,7 @@ public class Lexer {
 
     private String pureString;
     private int curFormatPattern;
+    private String[] splitString;
 
     private boolean inString; // 字符串中
     private boolean lineNote; // 小注释
@@ -250,6 +251,8 @@ public class Lexer {
         } else if (matcherFormatString.find()) {
             curToken = matcherFormatString.group();
             pureString = matcherFormatString.group("string");
+            String sp = pureString.replaceAll("%d","#%d#");
+            splitString = sp.split("#");
             tag = "STRCON";
             pos += curToken.length();
             isValid();
@@ -279,6 +282,10 @@ public class Lexer {
 
     public int getCurFormatPattern() {
         return curFormatPattern;
+    }
+
+    public String[] getSplitString() {
+        return splitString;
     }
 
     public boolean getSymbol() {

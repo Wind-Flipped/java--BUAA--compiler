@@ -1,5 +1,12 @@
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+
 public class MiddleCode {
     private static int i = 0;
+    // used to print str
+    private static int strCount = 0;
+    private static HashMap<String ,String> strings= new HashMap<>();
     private static String varName = null;
     private static int varDimen1 = 0;
     private static int varDimen2 = 0;
@@ -141,4 +148,34 @@ public class MiddleCode {
     }
 
     //TODO getint() & printf
+
+    public static void getint(String lval) {
+        FileStream.middleCodeOutput(lval + " = @read");
+    }
+
+    public static void prints(String[] splitString, ArrayList<String> vals) {
+        int length = splitString.length;
+        int j = 0;
+        for (int i = 0; i < length; i++) {
+            if (splitString[i].equals("")) {
+                continue;
+            } else if (splitString[i].equals("%d")) {
+                print(vals.get(j),true);
+                j++;
+            } else {
+                print(splitString[i],false);
+            }
+        }
+    }
+
+    public static void print(String str,boolean isInt) {
+        if (isInt) {
+            FileStream.middleCodeOutput("printNum " + str);
+        } else {
+            String str1 = "str_" + strCount;
+            strCount++;
+            strings.put(str1,str);
+            FileStream.middleCodeOutput("printString " + str1);
+        }
+    }
 }

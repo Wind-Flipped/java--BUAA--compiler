@@ -1,3 +1,5 @@
+import java.util.ArrayList;
+
 public class Parser {
     private Lexer lexer;
     private int line;
@@ -347,6 +349,7 @@ public class Parser {
         } else {
             error("j");
         }
+        FileStream.middleCodeOutput("main");
         if (block()) {
             FileStream.output("<MainFuncDef>");
             SymbolTable.clearPara();
@@ -486,6 +489,7 @@ public class Parser {
                     } else {
                         error("i");
                     }
+                    MiddleCode.getint(lval);
                 }
             }
             FileStream.output("<Stmt>");
@@ -576,13 +580,15 @@ public class Parser {
             hasReturn = false;
             int layer = 0;
             getToken();
+            ArrayList<String> vals = new ArrayList<>();
             if (curToken.equals("(")) {
                 getToken();
+                String[] splitString = lexer.getSplitString();
                 if (tag.equals("STRCON")) {
                     getToken();
                     while (curToken.equals(",")) {
                         getToken();
-                        exp();
+                        vals.add(exp());
                         layer++;
                     }
                 }
@@ -599,6 +605,7 @@ public class Parser {
                 } else {
                     error("i");
                 }
+                MiddleCode.prints(splitString,vals);
                 FileStream.output("<Stmt>");
                 return true;
             }
