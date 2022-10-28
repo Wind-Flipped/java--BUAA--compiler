@@ -6,7 +6,14 @@ public class Compiler {
         // FileStream.changeErrorOutput();
         FileStream.changeMidddleOutput();
         parser.compUnit();
-        FileStream.changeOldOutput();
+        if (Parser.hasError) {
+            FileStream.changeOldOutput();
+            System.out.println("Some Syntax errors occur!!!");
+        } else {
+            FileStream.changeMipsOutput();
+            TargetCode.generateMips();
+            FileStream.changeOldOutput();
+        }
         /*
         line = FileStream.getNextLine();
         for (int i = 0; i < line.length(); i++) {

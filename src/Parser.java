@@ -15,7 +15,7 @@ public class Parser {
     private int curValDimension; // 当前变量维数
     private String btype; // 当前btype，目前只有int类型
 
-    // 表达式返回值
+    public static boolean hasError = false;
 
 
     public Parser() {
@@ -37,6 +37,7 @@ public class Parser {
     }
 
     private void error(String c) {
+        hasError = true;
         if (c.equals("i") || c.equals("j") || c.equals("k")) {
             FileStream.error(formerLine + " " + c);
         } else {
@@ -238,12 +239,14 @@ public class Parser {
             if (!curTable.addVal(name,false,dimen,dimen1,dimen2)) {
                 error("b");
             }
+            MiddleCode.varDecl(btype,name,dimen1,dimen2);
         } else {
             if (!SymbolTable.addGlobalVal(name, false, dimen,dimen1,dimen2)) {
                 error("b");
             }
+            MiddleCode.varDecl(btype,name + "<global>",dimen1,dimen2);
         }
-        MiddleCode.varDecl(btype,name,dimen1,dimen2);
+
         if (tag.equals("ASSIGN")) {
             getToken();
             if (initVal(dimen1,dimen2)) {
@@ -316,6 +319,7 @@ public class Parser {
                     // func 定义完，建作用域
                     if (block()) {
                         FileStream.output("<FuncDef>");
+                        MiddleCode.funcDeclEnd(curReturnType,name);
                         curReturnType = null;
                         SymbolTable.clearPara();
                         return true;
@@ -349,10 +353,11 @@ public class Parser {
         } else {
             error("j");
         }
-        FileStream.middleCodeOutput("main");
+        MiddleCode.mainBegin();
         if (block()) {
             FileStream.output("<MainFuncDef>");
             SymbolTable.clearPara();
+            MiddleCode.mainEnd();
             return true;
         }
         return false;
@@ -430,6 +435,7 @@ public class Parser {
         if (curToken.equals("{")) {
             curTable = new SymbolTable(curTable);
             curLayer++;
+            MiddleCode.blockBegin(curLayer);
             getToken();
             while (blockItem());
             if (curToken.equals("}")) {
@@ -437,6 +443,7 @@ public class Parser {
                     error("g");
                 }
                 getToken();
+                MiddleCode.blockEnd(curLayer);
                 curLayer--;
             } else {
                 error("lack }");
@@ -672,6 +679,9 @@ public class Parser {
                 }
             }
             FileStream.output("<LVal>");
+            if (val.isGlobal()) {
+                curLval = curLval + "<global>";
+            }
             try {
                 if (!val.isConst()) {
                     throw new Exception();
@@ -736,6 +746,7 @@ public class Parser {
             // 看是函数还是变量
             String name = curToken;
             getToken();
+            MiddleCode.callPrapare(name);
             if (curToken.equals("(")) {
                 getToken();
                 funcRParams();

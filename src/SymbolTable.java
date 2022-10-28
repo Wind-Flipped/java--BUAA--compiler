@@ -20,20 +20,24 @@ public class SymbolTable {
         return father;
     }
 
+    public static HashMap<String, Val> getGlobalVals() {
+        return globalVals;
+    }
+
     public static void clearPara() {
         para.clear();
     }
 
     public static boolean addPara(String name, int dimension, int dimen1,int dimen2) {
-        if (para.contains(new Val(false, 0, name,dimen1,dimen2))) {
+        if (para.contains(new Val(false, 0, name,dimen1,dimen2,false))) {
             return false;
         }
-        para.add(new Val(false, dimension, name,dimen1,dimen2));
+        para.add(new Val(false, dimension, name,dimen1,dimen2,false));
         return true;
     }
 
     public void addPartPara(String name, int dimension,int dimen1,int dimen2) {
-        partPara.add(new Val(false, dimension, name,dimen1,dimen2));
+        partPara.add(new Val(false, dimension, name,dimen1,dimen2,false));
     }
 
     public boolean isFuncNameExist(String name) {
@@ -60,15 +64,15 @@ public class SymbolTable {
         if (globalVals.containsKey(name) || funcs.containsKey(name)) {
             return false;
         }
-        globalVals.put(name, new Val(isConst, dimension, name,dimen1,dimen2));
+        globalVals.put(name, new Val(isConst, dimension, name,dimen1,dimen2,true));
         return true;
     }
 
     public boolean addVal(String name, boolean isConst, int dimension,int dimen1,int dimen2) {
-        if (vals.containsKey(name) || para.contains(new Val(false, 0, name,dimen1,dimen2))) {
+        if (vals.containsKey(name) || para.contains(new Val(false, 0, name,dimen1,dimen2,false))) {
             return false;
         }
-        vals.put(name, new Val(isConst, dimension, name,dimen1,dimen2));
+        vals.put(name, new Val(isConst, dimension, name,dimen1,dimen2,false));
         return true;
     }
 
@@ -146,6 +150,8 @@ class Val {
     private int[] values;
     private int constDimen1 = 0;
     private int constDimen2 = 0;
+    private int address = 0;
+    private boolean isGlobal;
 
     @Override
     public boolean equals(Object o) {
@@ -160,8 +166,9 @@ class Val {
         return Objects.hash(name);
     }
 
-    public Val(boolean isConst, int dimen, String name, int dimen1, int dimen2) {
+    public Val(boolean isConst, int dimen, String name, int dimen1, int dimen2,boolean isGlobal) {
         // 行 列 default is 1 * 1
+        this.isGlobal = isGlobal;
         this.isConst = isConst;
         this.name = name;
         dimension = new ArrayList<>();
@@ -178,6 +185,23 @@ class Val {
         if (dimen >= 2) {
             dimension.add(dimen2);
         }
+    }
+
+    public boolean isGlobal() {
+        return isGlobal;
+    }
+
+    public void setAddress(int addr) {
+        address = addr;
+    }
+
+    public int getAddress() {
+        return address;
+    }
+
+    public int getSize() {
+        // 所占字节大小
+        return values.length * 4;
     }
 
     public void setValue(int value) {

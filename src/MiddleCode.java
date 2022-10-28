@@ -1,6 +1,6 @@
-import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 public class MiddleCode {
     private static int i = 0;
@@ -11,18 +11,26 @@ public class MiddleCode {
     private static int varDimen1 = 0;
     private static int varDimen2 = 0;
 
+    public static HashMap<String ,String> getStrings() {
+        return strings;
+    }
+
     public static void funcDecl(String type, String name) {
-        FileStream.middleCodeOutput("func " + type + " " + name);
+        FileStream.middleCodeOutput("#func_begin " + type + " " + name);
+    }
+
+    public static void funcDeclEnd(String type,String name) {
+        FileStream.middleCodeOutput("#func_end " + type + " " + name);
     }
 
     public static void paraDecl(String type, String name, int dimen1, int dimen2) {
         // default is 0, eg. [][3]
         if (dimen1 != 0 && dimen2 != 0) {
-            FileStream.middleCodeOutput("para " + type + " " + name + " [][" + dimen2 + "]");
+            FileStream.middleCodeOutput("#para " + type + " " + name + " [] [" + dimen2 + "]");
         } else if (dimen1 != 0) {
-            FileStream.middleCodeOutput("para " + type + " " + name + " []");
+            FileStream.middleCodeOutput("#para " + type + " " + name + " []");
         } else {
-            FileStream.middleCodeOutput("para " + type + " " + name);
+            FileStream.middleCodeOutput("#para " + type + " " + name);
         }
     }
 
@@ -37,12 +45,12 @@ public class MiddleCode {
             FileStream.middleCodeOutput("push " + name);
         }
         */
-        FileStream.middleCodeOutput("push " + name);
+        FileStream.middleCodeOutput("#push " + name);
 
     }
 
     public static void callFunc(String name) {
-        FileStream.middleCodeOutput("call " + name);
+        FileStream.middleCodeOutput("#call " + name);
     }
 
     /*
@@ -53,9 +61,9 @@ public class MiddleCode {
 
     public static void funcReturn(String name) {
         if (name != null) {
-            FileStream.middleCodeOutput("return " + name);
+            FileStream.middleCodeOutput("#return " + name);
         } else {
-            FileStream.middleCodeOutput("return");
+            FileStream.middleCodeOutput("#return");
         }
 
     }
@@ -63,11 +71,11 @@ public class MiddleCode {
     public static void varDecl(String type, String var, int dimen1, int dimen2) {
         // 常量不需要声明
         if (dimen1 != 0 && dimen2 != 0) {
-            FileStream.middleCodeOutput("var " + type + " " + var + "[" + dimen1 + "][" + dimen2 + "]");
+            FileStream.middleCodeOutput("#var " + type + " " + var + " [" + dimen1 + "] [" + dimen2 + "]");
         } else if (dimen1 != 0) {
-            FileStream.middleCodeOutput("var " + type + " " + var + "[" + dimen1 + "]");
+            FileStream.middleCodeOutput("#var " + type + " " + var + " [" + dimen1 + "]");
         } else {
-            FileStream.middleCodeOutput("var " + type + " " + var);
+            FileStream.middleCodeOutput("#var " + type + " " + var);
         }
         varName = var;
     }
@@ -82,7 +90,7 @@ public class MiddleCode {
                 varDimen1 = 0;
             }
         } else {
-            FileStream.middleCodeOutput(varName + "[" + varDimen1 + "][" + varDimen2 + "] = " + exp);
+            FileStream.middleCodeOutput(varName + "[" + (varDimen1 * dimen2 + varDimen2) + "] = " + exp);
             varDimen2++;
             if (varDimen2 == dimen2) {
                 varDimen1++;
@@ -147,10 +155,35 @@ public class MiddleCode {
         }
     }
 
+    public static void blockBegin(int layer) {
+        // 第 layer 层开始
+        FileStream.middleCodeOutput("#block_begin " + layer);
+    }
+
+    public static void blockEnd(int layer) {
+        // 第 layer 层结束
+        FileStream.middleCodeOutput("#block_end " + layer);
+    }
+
+    public static void mainBegin() {
+        FileStream.middleCodeOutput("#main_begin");
+    }
+
+    public static void mainEnd() {
+        FileStream.middleCodeOutput("#main_end");
+        for (Map.Entry<String ,String> entry : strings.entrySet()) {
+            FileStream.middleCodeOutput("#stringDefine " + entry.getKey() + " " + entry.getValue());
+        }
+    }
+
+    public static void callPrapare(String name) {
+        FileStream.middleCodeOutput("#call_pre " + name);
+    }
+
     //TODO getint() & printf
 
     public static void getint(String lval) {
-        FileStream.middleCodeOutput(lval + " = @read");
+        FileStream.middleCodeOutput("#read --> " + lval);
     }
 
     public static void prints(String[] splitString, ArrayList<String> vals) {
@@ -170,12 +203,12 @@ public class MiddleCode {
 
     public static void print(String str,boolean isInt) {
         if (isInt) {
-            FileStream.middleCodeOutput("printNum " + str);
+            FileStream.middleCodeOutput("#printNum " + str);
         } else {
             String str1 = "str_" + strCount;
             strCount++;
             strings.put(str1,str);
-            FileStream.middleCodeOutput("printString " + str1);
+            FileStream.middleCodeOutput("#printString " + str1);
         }
     }
 }
