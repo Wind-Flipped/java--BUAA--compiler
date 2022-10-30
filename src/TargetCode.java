@@ -1,6 +1,5 @@
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class TargetCode {
@@ -22,6 +21,7 @@ public class TargetCode {
     // s register
     private static int sReg = 0;
 
+    private static final Pattern arrayPattern = Pattern.compile("\\[(?<array>.*?)]$");
 
     public static void generateMips() {
         operations.put("+", "add");
@@ -57,27 +57,49 @@ public class TargetCode {
         }
         String sRegister = "$s" + sReg;
         sReg = 1 - sReg;
-        if (name.contains("<global>")) {
+        String[] pure = name.split("[\\[\\]]");
+        if (pure[0].contains("<global>")) {
             // s<global>[4]
             String[] pureName = name.split("[<>\\[\\]]");
             int addr = globalVals.get(pureName[0]).getAddress();
             if (name.contains("[")) {
                 // 含数组形式
-                if (isInteger(pureName[3])) {
-                    int x = 4 * Integer.parseInt(pureName[3]) + addr;
-                    FileStream.mipsOutput("lw " + sRegister + "," + x + "($gp)");
-                } else {
-                    // s<global>[@t1]
-                    if (pureName[3].charAt(0) == '@') {
-                        // str[@t1]
-                        FileStream.mipsOutput("sll $t8," + funcSymbolTable.findTemSymbol(pureName[3]) + ",2");
-                    } else {
-                        // str[i]
-                        FileStream.mipsOutput("lw $t8," + funcSymbolTable.findVar(pureName[3], layer) + "($sp)");
-                        FileStream.mipsOutput("sll $t8,$t8,2");
+                Matcher matcher = arrayPattern.matcher(name);
+                if (matcher.find()) {
+                    // 数组嵌套
+                    String curName = matcher.group("array");
+                    if (curName.contains("[")) {
+                        String rs = findSymbolsLoad(curName);
+                        FileStream.mipsOutput("sll $t8," + rs + ",2");
+                        FileStream.mipsOutput("add $t8,$t8,$gp");
+                        FileStream.mipsOutput("lw " + sRegister + "," + addr + "($t8)");
+                        return sRegister;
                     }
-                    FileStream.mipsOutput("add $t8,$t8,$gp");
-                    FileStream.mipsOutput("lw " + sRegister + "," + addr + "($t8)");
+                    if (curName.contains("<global>")) {
+                        String st = curName.split("<")[0];
+                        int raddr = globalVals.get(st).getAddress();
+                        FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
+                        FileStream.mipsOutput("sll $t8,$t8,2");
+                        FileStream.mipsOutput("add $t8,$t8,$gp");
+                        FileStream.mipsOutput("lw " + sRegister + "," + addr + "($t8)");
+                        return sRegister;
+                    }
+                    if (isInteger(pureName[3])) {
+                        int x = 4 * Integer.parseInt(pureName[3]) + addr;
+                        FileStream.mipsOutput("lw " + sRegister + "," + x + "($gp)");
+                    } else {
+                        // s<global>[@t1]
+                        if (pureName[3].charAt(0) == '@') {
+                            // str[@t1]
+                            FileStream.mipsOutput("sll $t8," + funcSymbolTable.findTemSymbol(pureName[3]) + ",2");
+                        } else {
+                            // str[i]
+                            FileStream.mipsOutput("lw $t8," + funcSymbolTable.findVar(pureName[3], layer) + "($sp)");
+                            FileStream.mipsOutput("sll $t8,$t8,2");
+                        }
+                        FileStream.mipsOutput("add $t8,$t8,$gp");
+                        FileStream.mipsOutput("lw " + sRegister + "," + addr + "($t8)");
+                    }
                 }
             } else {
                 // 不含数组形式
@@ -88,11 +110,40 @@ public class TargetCode {
         String[] pureName = name.split("[\\[\\]]");
         if (name.charAt(0) != '@') {
             String res = funcSymbolTable.findVar(pureName[0], layer);
+            if (res.charAt(0) == '#') {
+                // address para
+                Matcher matcher = arrayPattern.matcher(name);
+                if (matcher.find()) {
+                    String curName = matcher.group("array");
+                    return findAddrParaLoad(res, curName, sRegister);
+                }
+            }
             if (isInteger(res)) {
                 int x = Integer.parseInt(res);
+                Matcher matcher = arrayPattern.matcher(name);
+                if (matcher.find()) {
+                    // 数组嵌套
+                    String curName = matcher.group("array");
+                    if (curName.contains("[")) {
+                        String rs = findSymbolsLoad(curName);
+                        FileStream.mipsOutput("sll $t8," + rs + ",2");
+                        FileStream.mipsOutput("add $t8,$t8,$fp");
+                        FileStream.mipsOutput("lw " + sRegister + "," + x + "($t8)");
+                        return sRegister;
+                    }
+                    if (curName.contains("<global>")) {
+                        String st = curName.split("<")[0];
+                        int raddr = globalVals.get(st).getAddress();
+                        FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
+                        FileStream.mipsOutput("sll $t8,$t8,2");
+                        FileStream.mipsOutput("add $t8,$t8,$fp");
+                        FileStream.mipsOutput("lw " + sRegister + "," + x + "($t8)");
+                        return sRegister;
+                    }
+                }
                 if (pureName.length > 1) {
-                    // str[3]
                     if (isInteger(pureName[1])) {
+                        // str[3]
                         x = Integer.parseInt(pureName[1]) * 4 + Integer.parseInt(res);
                         FileStream.mipsOutput("lw " + sRegister + "," + x + "($fp)");
                     } else {
@@ -128,29 +179,90 @@ public class TargetCode {
         }
     }
 
+    private static String findAddrParaLoad(String res, String index, String sRegister) {
+        // res : #$a0 ,index = 1,i,@t1,i<global>,a[xxxx]
+        String reg = res.substring(1);
+        if (isInteger(reg)) {
+            // reg = 4
+            FileStream.mipsOutput("lw $t9," + reg + "($fp)");
+            reg = "$t9";
+        }
+        // reg = $a0
+        if (isInteger(index)) {
+            FileStream.mipsOutput("lw " + sRegister + "," + (4 * Integer.parseInt(index)) + "(" + reg + ")");
+        } else if (index.charAt(0) == '@') {
+            String tem = funcSymbolTable.findTemSymbol(index);
+            FileStream.mipsOutput("sll $t8," + tem + ",2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("lw " + sRegister + ",0($t8)");
+        } else if (index.contains("[")) {
+            String rs = findSymbolsLoad(index);
+            FileStream.mipsOutput("sll $t8," + rs + ",2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("lw " + sRegister + ",0($t8)");
+        } else if (index.contains("<global>")) {
+            String[] pureName = index.split("[<>]");
+            int addr = globalVals.get(pureName[0]).getAddress();
+            FileStream.mipsOutput("lw $t8," + addr + "($gp)");
+            FileStream.mipsOutput("sll $t8,$t8,2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("lw " + sRegister + ",0($t8)");
+        } else {
+            // i
+            int x = Integer.parseInt(funcSymbolTable.findVar(index, layer));
+            FileStream.mipsOutput("lw $t8," + x + "($fp)");
+            FileStream.mipsOutput("sll $t8,$t8,2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("lw " + sRegister + ",0($t8)");
+        }
+        return sRegister;
+    }
+
     private static void findSymbolsStore(String name, String regStore) {
         // 把 regStore 寄存器值存入 name 标识符内
-        if (name.contains("<global>")) {
+        String[] pure = name.split("[\\[\\]]");
+        if (pure[0].contains("<global>")) {
             // s<global>[4]
             String[] pureName = name.split("[<>\\[\\]]");
             int addr = globalVals.get(pureName[0]).getAddress();
             if (name.contains("[")) {
                 // 含数组形式
-                if (isInteger(pureName[3])) {
-                    int x = 4 * Integer.parseInt(pureName[3]) + addr;
-                    FileStream.mipsOutput("sw " + regStore + "," + x + "($gp)");
-                } else {
-                    // s<global>[@t1]
-                    if (pureName[3].charAt(0) == '@') {
-                        // str[@t1]
-                        FileStream.mipsOutput("sll $t8," + funcSymbolTable.findTemSymbol(pureName[3]) + ",2");
-                    } else {
-                        // str[i]
-                        FileStream.mipsOutput("lw $t8," + funcSymbolTable.findVar(pureName[3], layer) + "($gp)");
-                        FileStream.mipsOutput("sll $t8,$t8,2");
+                Matcher matcher = arrayPattern.matcher(name);
+                if (matcher.find()) {
+                    // 数组嵌套,数组内部内容
+                    String curName = matcher.group("array");
+                    if (curName.contains("[")) {
+                        String rs = findSymbolsLoad(curName);
+                        FileStream.mipsOutput("sll $t8," + rs + ",2");
+                        FileStream.mipsOutput("add $t8,$t8,$gp");
+                        FileStream.mipsOutput("sw " + regStore + "," + addr + "($t8)");
+                        return;
                     }
-                    FileStream.mipsOutput("add $t8,$t8,$fp");
-                    FileStream.mipsOutput("sw " + regStore + "," + addr + "($gp)");
+                    if (curName.contains("<global>")) {
+                        String st = curName.split("<")[0];
+                        int raddr = globalVals.get(st).getAddress();
+                        FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
+                        FileStream.mipsOutput("sll $t8,$t8,2");
+                        FileStream.mipsOutput("add $t8,$t8,$gp");
+                        FileStream.mipsOutput("sw " + regStore + "," + addr + "($t8)");
+                        return;
+                    }
+                    if (isInteger(pureName[3])) {
+                        int x = 4 * Integer.parseInt(pureName[3]) + addr;
+                        FileStream.mipsOutput("sw " + regStore + "," + x + "($gp)");
+                    } else {
+                        // s<global>[@t1]
+                        if (pureName[3].charAt(0) == '@') {
+                            // str[@t1]
+                            FileStream.mipsOutput("sll $t8," + funcSymbolTable.findTemSymbol(pureName[3]) + ",2");
+                        } else {
+                            // str[i]
+                            FileStream.mipsOutput("lw $t8," + funcSymbolTable.findVar(pureName[3], layer) + "($gp)");
+                            FileStream.mipsOutput("sll $t8,$t8,2");
+                        }
+                        FileStream.mipsOutput("add $t8,$t8,$fp");
+                        FileStream.mipsOutput("sw " + regStore + "," + addr + "($gp)");
+                    }
                 }
             } else {
                 // 不含数组形式
@@ -161,8 +273,38 @@ public class TargetCode {
         String[] pureName = name.split("[\\[\\]]");
         if (name.charAt(0) != '@') {
             String res = funcSymbolTable.findVar(pureName[0], layer);
+            if (res.charAt(0) == '#') {
+                // address para
+                Matcher matcher = arrayPattern.matcher(name);
+                if (matcher.find()) {
+                    String curName = matcher.group("array");
+                    findAddrParaStore(res, curName, regStore);
+                }
+                return;
+            }
             if (isInteger(res)) {
                 int x = Integer.parseInt(res);
+                Matcher matcher = arrayPattern.matcher(name);
+                if (matcher.find()) {
+                    // 数组嵌套
+                    String curName = matcher.group("array");
+                    if (curName.contains("[")) {
+                        String rs = findSymbolsLoad(curName);
+                        FileStream.mipsOutput("sll $t8," + rs + ",2");
+                        FileStream.mipsOutput("add $t8,$t8,$fp");
+                        FileStream.mipsOutput("sw " + regStore + "," + x + "($t8)");
+                        return;
+                    }
+                    if (curName.contains("<global>")) {
+                        String st = curName.split("<")[0];
+                        int raddr = globalVals.get(st).getAddress();
+                        FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
+                        FileStream.mipsOutput("sll $t8,$t8,2");
+                        FileStream.mipsOutput("add $t8,$t8,$fp");
+                        FileStream.mipsOutput("sw " + regStore + "," + x + "($t8)");
+                        return;
+                    }
+                }
                 if (pureName.length > 1) {
                     // str[3]
                     if (isInteger(pureName[1])) {
@@ -195,7 +337,49 @@ public class TargetCode {
                 rd = funcSymbolTable.addTemSymbol(name);
             }
             FileStream.mipsOutput("move " + rd + "," + regStore);
+            if (rd.equals("$t6")) {
+                FileStream.mipsOutput("sw $t6," + funcSymbolTable.getTemNum(name) + "($fp)");
+            }
         }
+    }
+
+    private static void findAddrParaStore(String res, String index, String regStore) {
+        // res : #$a0 ,index = 1,i,@t1,i<global>,a[xxxx]
+        String reg = res.substring(1);
+        if (isInteger(reg)) {
+            // reg = 4
+            FileStream.mipsOutput("lw $t9," + reg + "($fp)");
+            reg = "$t9";
+        }
+        // reg = $a0
+        if (isInteger(index)) {
+            FileStream.mipsOutput("sw " + regStore + "," + (4 * Integer.parseInt(index)) + "(" + reg + ")");
+        } else if (index.charAt(0) == '@') {
+            String tem = funcSymbolTable.findTemSymbol(index);
+            FileStream.mipsOutput("sll $t8," + tem + ",2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("sw " + regStore + ",0($t8)");
+        } else if (index.contains("[")) {
+            String rs = findSymbolsLoad(index);
+            FileStream.mipsOutput("sll $t8," + rs + ",2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("sw " + regStore + ",0($t8)");
+        } else if (index.contains("<global>")) {
+            String[] pureName = index.split("[<>]");
+            int addr = globalVals.get(pureName[0]).getAddress();
+            FileStream.mipsOutput("lw $t8," + addr + "($gp)");
+            FileStream.mipsOutput("sll $t8,$t8,2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("sw " + regStore + ",0($t8)");
+        } else {
+            // i
+            int x = Integer.parseInt(funcSymbolTable.findVar(index, layer));
+            FileStream.mipsOutput("lw $t8," + x + "($fp)");
+            FileStream.mipsOutput("sll $t8,$t8,2");
+            FileStream.mipsOutput("add $t8,$t8," + reg);
+            FileStream.mipsOutput("sw " + regStore + ",0($t8)");
+        }
+        return;
     }
 
     private static void beginData() {
@@ -220,11 +404,6 @@ public class TargetCode {
         FileStream.mipsOutput("# set global variable pointer");
         FileStream.mipsOutput("li $gp,0x10010000");
         FileStream.mipsOutput("li $fp,0x10040000");
-
-        FileStream.mipsOutput("jal main");
-        FileStream.mipsOutput("main_end:");
-        FileStream.mipsOutput("li $v0,10");
-        FileStream.mipsOutput("syscall");
     }
 
     private static void convertContent() {
@@ -265,6 +444,7 @@ public class TargetCode {
                 layer++;
                 break;
             case "#block_end":
+                funcSymbolTable.deleteVars(layer);
                 layer--;
                 break;
             case "#read":
@@ -281,10 +461,13 @@ public class TargetCode {
                 call(strings[1]);
                 break;
             case "#push":
-                push(strings[1]);
+                push(strings);
                 break;
             case "#return":
-                ret(strings[1]);
+                ret(strings);
+                break;
+            case "#global_end":
+                globalEnd();
                 break;
             default:
                 FileStream.mipsOutput("ERROR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
@@ -353,9 +536,15 @@ public class TargetCode {
             String rd = findSymbolsLoad(name1);
             if (!calculate.equals("yu")) {
                 FileStream.mipsOutput(calculate + " " + rd + "," + rs + "," + rt);
+                if (rd.equals("$t6") || rd.equals("$t7")) {
+                    FileStream.mipsOutput("sw " + rd + "," + funcSymbolTable.getTemNum(name1) + "($fp)");
+                }
             } else {
                 FileStream.mipsOutput("div " + rs + "," + rt);
                 FileStream.mipsOutput("mfhi " + rd);
+                if (rd.equals("$t6") || rd.equals("$t7")) {
+                    FileStream.mipsOutput("sw " + rd + "," + funcSymbolTable.getTemNum(name1) + "($fp)");
+                }
             }
         }
     }
@@ -376,7 +565,13 @@ public class TargetCode {
     }
 
     private static void para(String[] strings) {
-        funcSymbolTable.addParas(strings[2]);
+        if (strings.length > 3) {
+            // get address
+            funcSymbolTable.addParas(strings[2], "#");
+        } else {
+            funcSymbolTable.addParas(strings[2], "");
+        }
+
     }
 
     private static void var(String[] strings) {
@@ -435,22 +630,56 @@ public class TargetCode {
         FileStream.mipsOutput("sw $a1,-12($sp)");
         FileStream.mipsOutput("sw $a2,-16($sp)");
         FileStream.mipsOutput("sw $a3,-20($sp)");
-        FileStream.mipsOutput("addi $fp,$fp," + funcSymbolTable.getAddr());
     }
 
-    private static void push(String rparaName) {
+    private static void push(String[] strings) {
         //TODO 区分地址和值传递
-        String rs = findSymbolsLoad(rparaName);
+        String rparaName = strings[1];
+        String rs;
+        if (strings.length == 4) {
+            // addr : #push ss [0] <addr>
+            // get [??]
+            String rt = strings[2].substring(1, strings[2].length() - 1);
+            rt = findSymbolsLoad(rt);
+            FileStream.mipsOutput("sll $t8," + rt + ",2");
+            if (strings[1].contains("<global>")) {
+                String globalV = strings[1].split("<")[0];
+                int addr = globalVals.get(globalV).getAddress();
+                FileStream.mipsOutput("add $t8,$t8,$gp");
+                FileStream.mipsOutput("addi $t8,$t8," + addr);
+            } else {
+                String rp = funcSymbolTable.findVar(strings[1], layer);
+                if (isInteger(rp)) {
+                    // 4
+                    FileStream.mipsOutput("addi $t9,$fp," + rp);
+                    FileStream.mipsOutput("add $t8,$t8,$t9");
+                } else {
+                    // $a0
+                    FileStream.mipsOutput("add $t8,$t8," + rp);
+                }
+            }
+            rs = "$t8";
+        } else {
+            // 非地址
+            rs = findSymbolsLoad(rparaName);
+            if (rs.contains("$a")) {
+                // 参数寄存器
+                int num = Integer.parseInt(rs.substring(2));
+                FileStream.mipsOutput("lw $t5,-" + (8 + num * 4) + "($sp)");
+                rs = "$t5";
+            }
+        }
         if (rPara <= 3) {
             FileStream.mipsOutput("move $a" + rPara + "," + rs);
         } else {
-            FileStream.mipsOutput("lw " + rs + "," + (rPara - 4) * 4 + "($fp)");
+            FileStream.mipsOutput("sw " + rs + "," + (funcSymbolTable.getAddr() + (rPara - 4) * 4) + "($fp)");
         }
         rPara += 1;
     }
 
     private static void call(String funcName) {
         rPara = 0;
+        FileStream.mipsOutput("addi $fp,$fp," + funcSymbolTable.getAddr());
         FileStream.mipsOutput("sw $t0,-24($sp)");
         FileStream.mipsOutput("sw $t1,-28($sp)");
         FileStream.mipsOutput("sw $t2,-32($sp)");
@@ -476,9 +705,18 @@ public class TargetCode {
         FileStream.mipsOutput("lw $s1,-48($sp)");
     }
 
-    private static void ret(String name) {
-        FileStream.mipsOutput("move $v0," + findSymbolsLoad(name));
+    private static void ret(String[] strings) {
+        if (strings.length > 1) {
+            FileStream.mipsOutput("move $v0," + findSymbolsLoad(strings[1]));
+        }
         FileStream.mipsOutput("jr $ra");
+    }
+
+    private static void globalEnd() {
+        FileStream.mipsOutput("jal main");
+        // FileStream.mipsOutput("main_end:");
+        FileStream.mipsOutput("li $v0,10");
+        FileStream.mipsOutput("syscall");
     }
 }
 
@@ -490,26 +728,29 @@ class FuncSymbolTable {
     private int addr = 0;
     // 参数数量大小
     private int paraNum = 0;
-    // 临时寄存器号
-    private int reg = 0;
+    // 临时寄存器是否有用
+    private boolean[] tRegister;
+    private int tReg = 6;
 
     public FuncSymbolTable(FuncSymbolTable prev) {
         this.prev = prev;
         symbols = new HashMap<>();
         temSymbols = new HashMap<>();
+        tRegister = new boolean[]{true,true,true,true,true};
     }
 
     public FuncSymbolTable getPrev() {
         return prev;
     }
 
-    public void addParas(String name) {
+    public void addParas(String name, String isAddr) {
+        // if isAddr, get "#"
         String rname = name + "#1";
         if (paraNum <= 3) {
-            symbols.put(rname, "$a" + paraNum);
+            symbols.put(rname, isAddr + "$a" + paraNum);
             paraNum++;
         } else {
-            symbols.put(rname, String.valueOf(addr));
+            symbols.put(rname, isAddr + addr);
             addr += 4;
         }
     }
@@ -520,24 +761,58 @@ class FuncSymbolTable {
         addr += size;
     }
 
+    public void deleteVars(int layer) {
+        symbols.entrySet().removeIf(item -> item.getKey().contains("#" + layer));
+    }
+
     public String findVar(String name, int layer) {
-        return symbols.getOrDefault(name + "#" + layer, null);
+        int nowLayer = layer;
+        while (!symbols.containsKey(name + "#" + nowLayer)) {
+            nowLayer--;
+        }
+        return symbols.get(name + "#" + nowLayer);
+        // return symbols.getOrDefault(name + "#" + layer, null);
     }
 
     // 临时变量
     public String addTemSymbol(String name) {
-        temSymbols.put(name, "$t" + reg);
-        String rd = "$t" + reg;
-        // 总共 5 个临时寄存器
-        reg = (reg + 1) % 5;
-        return rd;
+        if (tRegister[0] || tRegister[1] || tRegister[2] || tRegister[3] || tRegister[4]) {
+            for (int i = 0; i < 5; i++) {
+                if (tRegister[i]) {
+                    temSymbols.put(name, "$t" + i);
+                    tRegister[i] = false;
+                    return "$t" + i;
+                }
+            }
+        } else {
+            temSymbols.put(name, String.valueOf(addr));
+            addr += 4;
+            return "$t6";
+        }
+        return null;
     }
 
     public int getAddr() {
         return addr;
     }
 
+    public String getTemNum(String name) {
+        return temSymbols.get(name);
+    }
+
     public String findTemSymbol(String name) {
-        return temSymbols.getOrDefault(name, null);
+        if (temSymbols.containsKey(name)) {
+            String reg = temSymbols.get(name);
+            if (!TargetCode.isInteger(reg)) {
+                tRegister[Integer.parseInt(String.valueOf(reg.charAt(2)))] = true;
+                return reg;
+            } else {
+                String treg = "$t" + tReg;
+                FileStream.mipsOutput("lw " + treg + "," + reg + "($fp)");
+                tReg = 13 - tReg;
+                return treg;
+            }
+        }
+        return null;
     }
 }

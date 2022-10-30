@@ -6,12 +6,12 @@ public class MiddleCode {
     private static int i = 0;
     // used to print str
     private static int strCount = 0;
-    private static HashMap<String ,String> strings= new HashMap<>();
+    private static HashMap<String, String> strings = new HashMap<>();
     private static String varName = null;
     private static int varDimen1 = 0;
     private static int varDimen2 = 0;
 
-    public static HashMap<String ,String> getStrings() {
+    public static HashMap<String, String> getStrings() {
         return strings;
     }
 
@@ -19,8 +19,12 @@ public class MiddleCode {
         FileStream.middleCodeOutput("#func_begin " + type + " " + name);
     }
 
-    public static void funcDeclEnd(String type,String name) {
+    public static void funcDeclEnd(String type, String name) {
         FileStream.middleCodeOutput("#func_end " + type + " " + name);
+    }
+
+    public static void endGlobalDecl() {
+        FileStream.middleCodeOutput("#global_end");
     }
 
     public static void paraDecl(String type, String name, int dimen1, int dimen2) {
@@ -49,8 +53,14 @@ public class MiddleCode {
 
     }
 
-    public static void callFunc(String name) {
+    public static String callFunc(String name,String returnType) {
         FileStream.middleCodeOutput("#call " + name);
+        if (returnType.equals("int")) {
+            FileStream.middleCodeOutput("@t" + i + " = @RETURN");
+            i++;
+            return "@t" + (i-1);
+        }
+        return "@RETURN";
     }
 
     /*
@@ -80,7 +90,7 @@ public class MiddleCode {
         varName = var;
     }
 
-    public static void varInit(int dimen1, int dimen2,String exp) {
+    public static void varInit(int dimen1, int dimen2, String exp) {
         if (dimen1 == 0) {
             FileStream.middleCodeOutput(varName + " = " + exp);
         } else if (dimen2 == 0) {
@@ -102,7 +112,20 @@ public class MiddleCode {
         }
     }
 
-    public static String deDimen(String name, String dimen1, String dimen2, int colDimen) {
+    public static String deDimen(String name, String dimen1, String dimen2, int colDimen, int curDimen) {
+        // if curDimen != 0 , addr
+        if (curDimen == 2 || (curDimen == 1 && dimen1 == null)) {
+            // 数组传参地址
+            return name + " [0] <addr>";
+        } else if (curDimen == 1) {
+            if (TargetCode.isInteger(dimen1)) {
+                return name + " [" + (Integer.parseInt(dimen1) * colDimen) + "] <addr>";
+            } else {
+                FileStream.middleCodeOutput("@t" + i + " = " + dimen1 + " * " + colDimen);
+                i++;
+                return name + " [@t" + (i - 1) + "] <addr>";
+            }
+        }
         if (dimen2 != null) {
             FileStream.middleCodeOutput("@t" + i + " = " + dimen1 + " * " + colDimen);
             i++;
@@ -171,7 +194,7 @@ public class MiddleCode {
 
     public static void mainEnd() {
         FileStream.middleCodeOutput("#main_end");
-        for (Map.Entry<String ,String> entry : strings.entrySet()) {
+        for (Map.Entry<String, String> entry : strings.entrySet()) {
             FileStream.middleCodeOutput("#stringDefine " + entry.getKey() + " " + entry.getValue());
         }
     }
@@ -193,21 +216,21 @@ public class MiddleCode {
             if (splitString[i].equals("")) {
                 continue;
             } else if (splitString[i].equals("%d")) {
-                print(vals.get(j),true);
+                print(vals.get(j), true);
                 j++;
             } else {
-                print(splitString[i],false);
+                print(splitString[i], false);
             }
         }
     }
 
-    public static void print(String str,boolean isInt) {
+    public static void print(String str, boolean isInt) {
         if (isInt) {
             FileStream.middleCodeOutput("#printNum " + str);
         } else {
             String str1 = "str_" + strCount;
             strCount++;
-            strings.put(str1,str);
+            strings.put(str1, str);
             FileStream.middleCodeOutput("#printString " + str1);
         }
     }

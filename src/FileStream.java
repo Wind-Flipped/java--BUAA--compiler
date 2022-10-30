@@ -86,7 +86,9 @@ public class FileStream {
     }
 
     public static void error(String str) {
-        // System.out.println(str);
+        System.setOut(error_print);
+        System.out.println(str);
+        System.setOut(middle_print);
     }
 
     public static String getNextLine() {

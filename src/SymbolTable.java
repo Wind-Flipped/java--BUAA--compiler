@@ -7,8 +7,8 @@ public class SymbolTable {
     private final SymbolTable father;
     private static final HashMap<String, Func> funcs = new HashMap<>();
     private final HashMap<String, Val> vals;
-    private static final ArrayList<Val> para = new ArrayList<>();
-    private final ArrayList<Val> partPara;
+    private static final ArrayList<Val> para = new ArrayList<>(); // 函数形参
+    private final ArrayList<Val> partPara; // 函数实参
 
     public SymbolTable(SymbolTable father) {
         this.father = father;
@@ -68,8 +68,8 @@ public class SymbolTable {
         return true;
     }
 
-    public boolean addVal(String name, boolean isConst, int dimension,int dimen1,int dimen2) {
-        if (vals.containsKey(name) || para.contains(new Val(false, 0, name,dimen1,dimen2,false))) {
+    public boolean addVal(String name, boolean isConst, int dimension,int dimen1,int dimen2,int curLayer) {
+        if (vals.containsKey(name) || (curLayer == 1 && para.contains(new Val(false, 0, name,dimen1,dimen2,false)))) {
             return false;
         }
         vals.put(name, new Val(isConst, dimension, name,dimen1,dimen2,false));
@@ -88,16 +88,17 @@ public class SymbolTable {
         if (vals.containsKey(name)) {
             return vals.get(name);
         }
-        if (globalVals.containsKey(name)) {
-            return globalVals.get(name);
+        if (father != null) {
+            return father.findVal(name);
         }
         for (int i = 0; i < para.size(); i++) {
             if (para.get(i).getName().equals(name)) {
                 return para.get(i);
             }
         }
-        if (father != null) {
-            return father.findVal(name);
+        if (globalVals.containsKey(name)) {
+            // 全局变量是最后看的
+            return globalVals.get(name);
         }
         return null;
     }
@@ -211,6 +212,7 @@ class Val {
             constDimen2++;
             if (constDimen2 == dimension.get(1)) {
                 constDimen1++;
+                constDimen2 = 0;
             }
         } else if (getDimension() == 1) {
             values[constDimen1] = value;

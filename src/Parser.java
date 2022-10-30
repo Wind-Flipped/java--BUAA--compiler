@@ -49,6 +49,7 @@ public class Parser {
     public void compUnit() {
         getToken();
         while (decl()) ;
+        MiddleCode.endGlobalDecl();
         while (funcDef()) ;
         if (mainFuncDef()) {
             FileStream.output("<CompUnit>");
@@ -123,7 +124,7 @@ public class Parser {
             dimen++;
         }
         if (curTable != null) {
-            if (!curTable.addVal(name,true,dimen,dimen1,dimen2)) {
+            if (!curTable.addVal(name,true,dimen,dimen1,dimen2,curLayer)) {
                 error("b");
             }
         } else {
@@ -236,7 +237,7 @@ public class Parser {
             dimen++;
         }
         if (curTable != null) {
-            if (!curTable.addVal(name,false,dimen,dimen1,dimen2)) {
+            if (!curTable.addVal(name,false,dimen,dimen1,dimen2,curLayer)) {
                 error("b");
             }
             MiddleCode.varDecl(btype,name,dimen1,dimen2);
@@ -644,6 +645,7 @@ public class Parser {
     private String lval() {
         if (tag.equals("IDENFR")) {
             curLval = curToken;
+            String lval = curToken;
             Val val;
             if (curTable == null) {
                 val = new SymbolTable(null).findVal(curLval);
@@ -680,7 +682,7 @@ public class Parser {
             }
             FileStream.output("<LVal>");
             if (val.isGlobal()) {
-                curLval = curLval + "<global>";
+                lval = lval + "<global>";
             }
             try {
                 if (!val.isConst()) {
@@ -700,7 +702,7 @@ public class Parser {
                 }
                 return String.valueOf(val.getValue(i1,i2));
             } catch (Exception e) {
-                return MiddleCode.deDimen(curLval,dimen1,dimen2,coDimen);
+                return MiddleCode.deDimen(lval,dimen1,dimen2,coDimen,curValDimension);
             }
         }
         return null;
@@ -774,8 +776,7 @@ public class Parser {
             }
             curTable.clearPartPara();
             FileStream.output("<UnaryExp>");
-            MiddleCode.callFunc(name);
-            return "@RETURN";
+            return MiddleCode.callFunc(name,curTable.getFuncReturnType(name));
         } else if ((primaryExp = primaryExp()) != null) {
             FileStream.output("<UnaryExp>");
             return primaryExp;
@@ -805,7 +806,8 @@ public class Parser {
             MiddleCode.rParaDecl(exp);
             while (curToken.equals(",")) {
                 getToken();
-                exp();
+                exp = exp();
+                MiddleCode.rParaDecl(exp);
                 curTable.addPartPara(null,curValDimension,0,0);
                 curValDimension = 0;
             }
@@ -819,32 +821,46 @@ public class Parser {
         String unaryExp = unaryExp();
         if (unaryExp != null) {
             FileStream.output("<MulExp>");
-            String token = null;
-            String mul = null;
-            if (curToken.equals("*") || curToken.equals("/") || curToken.equals("%")) {
-                token = curToken;
-                getToken();
-                mul = mulExp();
-            }
-            return MiddleCode.algorithmOp(unaryExp,mul,token);
+            return mulExpT(unaryExp);
         }
         return null;
+    }
+
+    private String mulExpT(String unaryExp) {
+        String token = null;
+        // String add = null;
+        if (curToken.equals("*") || curToken.equals("/") || curToken.equals("%")) {
+            token = curToken;
+            getToken();
+            String unaryExp1 = unaryExp();
+            FileStream.output("<MulExp>");
+            String result = MiddleCode.algorithmOp(unaryExp, unaryExp1, token);
+            return mulExpT(result);
+        }
+        return unaryExp;
     }
 
     private String addExp() {
         String mulExp = mulExp();
         if (mulExp != null) {
             FileStream.output("<AddExp>");
-            String token = null;
-            String add = null;
-            if (curToken.equals("+") || curToken.equals("-")) {
-                token = curToken;
-                getToken();
-                add = addExp();
-            }
-            return MiddleCode.algorithmOp(mulExp,add,token);
+            return addExpT(mulExp);
         }
         return null;
+    }
+
+    private String addExpT(String mul1) {
+        String token = null;
+        // String add = null;
+        if (curToken.equals("+") || curToken.equals("-")) {
+            token = curToken;
+            getToken();
+            String mul2 = mulExp();
+            FileStream.output("<AddExp>");
+            String result = MiddleCode.algorithmOp(mul1,mul2,token);
+            return addExpT(result);
+        }
+        return mul1;
     }
 
     private boolean relExp() {
@@ -860,6 +876,20 @@ public class Parser {
         }
         return false;
     }
+    /*
+    private String relExpT(String addExp1) {
+        String token = null;
+        // String add = null;
+        if (curToken.equals("<") || curToken.equals(">") || curToken.equals("<=") || curToken.equals(">=")) {
+            token = curToken;
+            getToken();
+            String addExp2 = addExp();
+            FileStream.output("<AddExp>");
+            String result = MiddleCode.algorithmOp(addExp1,addExp2,token);
+            return relExpT(result);
+        }
+        return addExp1;
+    } */
 
     private boolean eqExp() {
         if (relExp()) {
@@ -872,6 +902,20 @@ public class Parser {
         }
         return false;
     }
+    /*
+    private String eqExpT(String relExp1) {
+        String token = null;
+        // String add = null;
+        if (curToken.equals("==") || curToken.equals("!=")) {
+            token = curToken;
+            getToken();
+            String relExp2 = relExp();
+            FileStream.output("<AddExp>");
+            String result = MiddleCode.algorithmOp(relExp1,relExp2,token);
+            return relExpT(result);
+        }
+        return relExp1;
+    } */
 
     private boolean lAndExp() {
         if (eqExp()) {
