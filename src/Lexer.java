@@ -244,7 +244,7 @@ public class Lexer {
             return true;
         } else if (matcherConstInt.find()) {
             curToken = matcherConstInt.group("num");
-            num = Integer.parseInt(curToken);
+            num = Parser.str2int(curToken);
             tag = "INTCON";
             pos += curToken.length();
             return true;
@@ -303,7 +303,7 @@ public class Lexer {
     }
 
     public char watchNext() {
-        if (pos + 1 == length) {
+        if (pos + 1 >= length) {
             return '\0';
         } else {
             return string.charAt(pos);

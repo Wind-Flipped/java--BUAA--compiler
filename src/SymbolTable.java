@@ -8,12 +8,12 @@ public class SymbolTable {
     private static final HashMap<String, Func> funcs = new HashMap<>();
     private final HashMap<String, Val> vals;
     private static final ArrayList<Val> para = new ArrayList<>(); // 函数形参
-    private final ArrayList<Val> partPara; // 函数实参
+    // private final ArrayList<Val> partPara; // 函数实参
 
     public SymbolTable(SymbolTable father) {
         this.father = father;
         vals = new HashMap<>();
-        partPara = new ArrayList<>();
+        // partPara = new ArrayList<>();
     }
 
     public SymbolTable getFather() {
@@ -35,11 +35,11 @@ public class SymbolTable {
         para.add(new Val(false, dimension, name,dimen1,dimen2,false));
         return true;
     }
-
+    /*
     public void addPartPara(String name, int dimension,int dimen1,int dimen2) {
         partPara.add(new Val(false, dimension, name,dimen1,dimen2,false));
     }
-
+    */
     public boolean isFuncNameExist(String name) {
         return funcs.containsKey(name);
     }
@@ -48,18 +48,18 @@ public class SymbolTable {
         return funcs.get(name).getReturnType();
     }
 
-    public boolean funcParaNumCorrect(String name) {
-        return funcs.get(name).getParaNum() == partPara.size();
+    public boolean funcParaNumCorrect(String name,ArrayList<Integer> curVals) {
+        return funcs.get(name).getParaNum() == curVals.size();
     }
 
-    public boolean funcParaTypeCorrect(String name) {
-        return funcs.get(name).compareType(partPara);
+    public boolean funcParaTypeCorrect(String name,ArrayList<Integer> curVals) {
+        return funcs.get(name).compareType(curVals);
     }
-
+    /*
     public void clearPartPara() {
         partPara.clear();
     }
-
+    */
     public static boolean addGlobalVal(String name, boolean isConst, int dimension,int dimen1,int dimen2) {
         if (globalVals.containsKey(name) || funcs.containsKey(name)) {
             return false;
@@ -129,10 +129,10 @@ class Func {
         return parameters.size();
     }
 
-    public boolean compareType(ArrayList<Val> rvals) {
+    public boolean compareType(ArrayList<Integer> rvals) {
         int size = parameters.size();
         for (int i = 0; i < size; i++) {
-            if (rvals.get(i).getDimension() != parameters.get(i).getDimension()) {
+            if (rvals.get(i) != parameters.get(i).getDimension()) {
                 return false;
             }
         }

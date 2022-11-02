@@ -17,6 +17,14 @@ public class Parser {
 
     public static boolean hasError = false;
 
+    public static int str2int(String str) {
+        if (str.charAt(0) == '-') {
+            return -Integer.parseInt(str.substring(1));
+        } else {
+            return Integer.parseInt(str);
+        }
+    }
+
 
     public Parser() {
         String s = FileStream.getNextLine();
@@ -112,9 +120,9 @@ public class Parser {
         while (tag.equals("LBRACK")) {
             getToken();
             if (dimen == 0) {
-                dimen1 = Integer.parseInt(constExp());
+                dimen1 = str2int(constExp());
             } else {
-                dimen2 = Integer.parseInt(constExp());
+                dimen2 = str2int(constExp());
             }
             if (tag.equals("RBRACK")) {
                 getToken();
@@ -124,13 +132,15 @@ public class Parser {
             dimen++;
         }
         if (curTable != null) {
-            if (!curTable.addVal(name,true,dimen,dimen1,dimen2,curLayer)) {
+            if (!curTable.addVal(name, true, dimen, dimen1, dimen2, curLayer)) {
                 error("b");
             }
+            MiddleCode.varDecl(btype, name, dimen1, dimen2);
         } else {
-            if (!SymbolTable.addGlobalVal(name, true, dimen,dimen1,dimen2)) {
+            if (!SymbolTable.addGlobalVal(name, true, dimen, dimen1, dimen2)) {
                 error("b");
             }
+            MiddleCode.varDecl(btype, name + "<global>", dimen1, dimen2);
         }
         Val val;
         // 给后面初始化传常量
@@ -145,7 +155,7 @@ public class Parser {
         } else {
             error("const val not assgin init value");
         }
-        if (constInitVal(val)) {
+        if (constInitVal(val,dimen1,dimen2)) {
             FileStream.output("<ConstDef>");
             return true;
         } else {
@@ -154,27 +164,30 @@ public class Parser {
         }
     }
 
-    private boolean constInitVal(Val val) {
+    private boolean constInitVal(Val val,int dimen1,int dimen2) {
         String constExp = constExp();
         if (constExp != null) {
             FileStream.output("<ConstInitVal>");
-            val.setValue(Integer.parseInt(constExp));
+            if (!hasError) {
+                val.setValue(str2int(constExp));
+                MiddleCode.varInit(dimen1, dimen2, constExp);
+            }
             return true;
         } else {
             if (curToken.equals("{")) {
                 getToken();
-                if (constInitVal(val)) {
+                if (constInitVal(val,dimen1,dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        constInitVal(val);
+                        constInitVal(val,dimen1,dimen2);
                     }
                 } else {
                     error("lack }");
                 }
-                while (constInitVal(val)) {
+                while (constInitVal(val,dimen1,dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        constInitVal(val);
+                        constInitVal(val,dimen1,dimen2);
                     }
                 }
                 if (curToken.equals("}")) {
@@ -225,9 +238,9 @@ public class Parser {
         while (tag.equals("LBRACK")) {
             getToken();
             if (dimen == 0) {
-                dimen1 = Integer.parseInt(constExp());
+                dimen1 = str2int(constExp());
             } else {
-                dimen2 = Integer.parseInt(constExp());
+                dimen2 = str2int(constExp());
             }
             if (tag.equals("RBRACK")) {
                 getToken();
@@ -237,20 +250,20 @@ public class Parser {
             dimen++;
         }
         if (curTable != null) {
-            if (!curTable.addVal(name,false,dimen,dimen1,dimen2,curLayer)) {
+            if (!curTable.addVal(name, false, dimen, dimen1, dimen2, curLayer)) {
                 error("b");
             }
-            MiddleCode.varDecl(btype,name,dimen1,dimen2);
+            MiddleCode.varDecl(btype, name, dimen1, dimen2);
         } else {
-            if (!SymbolTable.addGlobalVal(name, false, dimen,dimen1,dimen2)) {
+            if (!SymbolTable.addGlobalVal(name, false, dimen, dimen1, dimen2)) {
                 error("b");
             }
-            MiddleCode.varDecl(btype,name + "<global>",dimen1,dimen2);
+            MiddleCode.varDecl(btype, name + "<global>", dimen1, dimen2);
         }
 
         if (tag.equals("ASSIGN")) {
             getToken();
-            if (initVal(dimen1,dimen2)) {
+            if (initVal(dimen1, dimen2)) {
                 FileStream.output("<VarDef>");
                 return true;
             } else {
@@ -263,27 +276,29 @@ public class Parser {
         }
     }
 
-    private boolean initVal(int dimen1,int dimen2) {
+    private boolean initVal(int dimen1, int dimen2) {
         String exp = exp();
         if (exp != null) {
             FileStream.output("<InitVal>");
-            MiddleCode.varInit(dimen1,dimen2,exp);
+            if (!hasError) {
+                MiddleCode.varInit(dimen1, dimen2, exp);
+            }
             return true;
         } else {
             if (curToken.equals("{")) {
                 getToken();
-                if (initVal(dimen1,dimen2)) {
+                if (initVal(dimen1, dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        initVal(dimen1,dimen2);
+                        initVal(dimen1, dimen2);
                     }
                 } else {
                     error("no init value");
                 }
-                while (initVal(dimen1,dimen2)) {
+                while (initVal(dimen1, dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        initVal(dimen1,dimen2);
+                        initVal(dimen1, dimen2);
                     }
                 }
                 if (curToken.equals("}")) {
@@ -304,7 +319,7 @@ public class Parser {
             String name;
             if (tag.equals("IDENFR")) {
                 name = curToken;
-                MiddleCode.funcDecl(curReturnType,name);
+                MiddleCode.funcDecl(curReturnType, name);
                 getToken();
                 if (tag.equals("LPARENT")) {
                     getToken();
@@ -314,13 +329,13 @@ public class Parser {
                     } else {
                         error("j");
                     }
-                    if (!SymbolTable.addFunc(name,curReturnType)) {
+                    if (!SymbolTable.addFunc(name, curReturnType)) {
                         error("b");
                     }
                     // func 定义完，建作用域
                     if (block()) {
                         FileStream.output("<FuncDef>");
-                        MiddleCode.funcDeclEnd(curReturnType,name);
+                        MiddleCode.funcDeclEnd(curReturnType, name);
                         curReturnType = null;
                         SymbolTable.clearPara();
                         return true;
@@ -341,7 +356,7 @@ public class Parser {
         */
         // int 已经被分析过了
         if (tag.equals("MAINTK")) {
-            if (!SymbolTable.addFunc("main","int")) {
+            if (!SymbolTable.addFunc("main", "int")) {
                 error("b");
             }
             getToken();
@@ -410,7 +425,7 @@ public class Parser {
                         while (curToken.equals("[")) {
                             dimen++;
                             getToken();
-                            dimen2 = Integer.parseInt(constExp());
+                            dimen2 = str2int(constExp());
                             if (curToken.equals("]")) {
                                 getToken();
                             } else {
@@ -421,10 +436,10 @@ public class Parser {
                         error("k");
                     }
                 }
-                if (!SymbolTable.addPara(name,dimen,0,dimen2)) {
+                if (!SymbolTable.addPara(name, dimen, 0, dimen2)) {
                     error("b");
                 }
-                MiddleCode.paraDecl(btype,name,dimen1,dimen2);
+                MiddleCode.paraDecl(btype, name, dimen1, dimen2);
                 FileStream.output("<FuncFParam>");
                 return true;
             }
@@ -438,7 +453,7 @@ public class Parser {
             curLayer++;
             MiddleCode.blockBegin(curLayer);
             getToken();
-            while (blockItem());
+            while (blockItem()) ;
             if (curToken.equals("}")) {
                 if (curReturnType.equals("int") && !hasReturn && curLayer == 1) {
                     error("g");
@@ -481,7 +496,7 @@ public class Parser {
                     } else {
                         error("i");
                     }
-                    MiddleCode.algorithmOp(lval,exp,null);
+                    MiddleCode.algorithmOp(lval, exp, null);
                 } else if (tag.equals("GETINTTK")) {
                     getToken();
                     if (curToken.equals("(")) {
@@ -613,7 +628,9 @@ public class Parser {
                 } else {
                     error("i");
                 }
-                MiddleCode.prints(splitString,vals);
+                if (!hasError) {
+                    MiddleCode.prints(splitString, vals);
+                }
                 FileStream.output("<Stmt>");
                 return true;
             }
@@ -623,7 +640,7 @@ public class Parser {
 
     private String exp() {
         String addExp = addExp();
-        if (addExp!= null) {
+        if (addExp != null) {
             FileStream.output("<Exp>");
             return addExp;
         }
@@ -681,6 +698,9 @@ public class Parser {
                 }
             }
             FileStream.output("<LVal>");
+            if (hasError) {
+                return "error";
+            }
             if (val.isGlobal()) {
                 lval = lval + "<global>";
             }
@@ -693,16 +713,16 @@ public class Parser {
                 if (dimen1 == null) {
                     i1 = -1;
                 } else {
-                    i1 = Integer.parseInt(dimen1);
+                    i1 = str2int(dimen1);
                 }
                 if (dimen2 == null) {
                     i2 = -1;
                 } else {
-                    i2 = Integer.parseInt(dimen2);
+                    i2 = str2int(dimen2);
                 }
-                return String.valueOf(val.getValue(i1,i2));
+                return String.valueOf(val.getValue(i1, i2));
             } catch (Exception e) {
-                return MiddleCode.deDimen(lval,dimen1,dimen2,coDimen,curValDimension);
+                return MiddleCode.deDimen(lval, dimen1, dimen2, coDimen, curValDimension);
             }
         }
         return null;
@@ -751,39 +771,27 @@ public class Parser {
             MiddleCode.callPrapare(name);
             if (curToken.equals("(")) {
                 getToken();
-                funcRParams();
+                funcRParams(name);
             }
             if (curToken.equals(")")) {
                 getToken();
             } else {
                 error("j");
             }
-            if (curTable.isFuncNameExist(name)) {
-                if (curTable.getFuncReturnType(name).equals("int")) {
-                    curValDimension = 0;
-                } else {
-                    curValDimension = 4396;
-                }
-                if (curTable.funcParaNumCorrect(name)) {
-                    if (!curTable.funcParaTypeCorrect(name)) {
-                        error("e");
-                    }
-                } else {
-                    error("d");
-                }
-            } else {
-                error("c");
-            }
-            curTable.clearPartPara();
+
+            // curTable.clearPartPara();
             FileStream.output("<UnaryExp>");
-            return MiddleCode.callFunc(name,curTable.getFuncReturnType(name));
+            if (hasError) {
+                return "error";
+            }
+            return MiddleCode.callFunc(name, curTable.getFuncReturnType(name));
         } else if ((primaryExp = primaryExp()) != null) {
             FileStream.output("<UnaryExp>");
             return primaryExp;
         } else if ((unaryOp = unaryOp()) != null) {
             String unaryExp = unaryExp();
             FileStream.output("<UnaryExp>");
-            return MiddleCode.algorithmOp(unaryExp,null,unaryOp);
+            return MiddleCode.algorithmOp(unaryExp, null, unaryOp);
         }
         return null;
     }
@@ -798,21 +806,39 @@ public class Parser {
         return null;
     }
 
-    private boolean funcRParams() {
+    private boolean funcRParams(String name) {
         String exp = exp();
+        ArrayList<Integer> curVals = new ArrayList<>();
         if (exp != null) {
-            curTable.addPartPara(null,curValDimension,0,0);
+            // curTable.addPartPara(null, curValDimension, 0, 0);
+            curVals.add(curValDimension);
             curValDimension = 0;
             MiddleCode.rParaDecl(exp);
             while (curToken.equals(",")) {
                 getToken();
                 exp = exp();
+                curVals.add(curValDimension);
                 MiddleCode.rParaDecl(exp);
-                curTable.addPartPara(null,curValDimension,0,0);
+                // curTable.addPartPara(null, curValDimension, 0, 0);
                 curValDimension = 0;
             }
             FileStream.output("<FuncRParams>");
-            return true;
+        }
+        if (curTable.isFuncNameExist(name)) {
+            if (curTable.getFuncReturnType(name).equals("int")) {
+                curValDimension = 0;
+            } else {
+                curValDimension = 4396;
+            }
+            if (curTable.funcParaNumCorrect(name,curVals)) {
+                if (!curTable.funcParaTypeCorrect(name,curVals)) {
+                    error("e");
+                }
+            } else {
+                error("d");
+            }
+        } else {
+            error("c");
         }
         return false;
     }
@@ -857,7 +883,7 @@ public class Parser {
             getToken();
             String mul2 = mulExp();
             FileStream.output("<AddExp>");
-            String result = MiddleCode.algorithmOp(mul1,mul2,token);
+            String result = MiddleCode.algorithmOp(mul1, mul2, token);
             return addExpT(result);
         }
         return mul1;

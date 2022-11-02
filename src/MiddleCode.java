@@ -141,8 +141,8 @@ public class MiddleCode {
 
     public static String algorithmOp(String res1, String res2, String op) {
         try {
-            int n1 = Integer.parseInt(res1);
-            int n2 = Integer.parseInt(res2);
+            int n1 = Parser.str2int(res1);
+            int n2 = Parser.str2int(res2);
             switch (op) {
                 case "+":
                     return String.valueOf(n1 + n2);
@@ -172,6 +172,17 @@ public class MiddleCode {
             if (res2 != null) {
                 FileStream.middleCodeOutput(des + " = " + res1 + " " + op + " " + res2);
             } else {
+                if (TargetCode.isInteger(res1)) {
+                    if (op.equals("+")) {
+                        return res1;
+                    } else if (op.equals("-")){
+                        if (res1.charAt(0) == '-') {
+                            return res1.substring(1);
+                        } else {
+                            return "-" + res1;
+                        }
+                    }
+                }
                 FileStream.middleCodeOutput(des + " = " + op + " " + res1);
             }
             return des;

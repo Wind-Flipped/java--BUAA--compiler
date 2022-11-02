@@ -3,7 +3,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class TargetCode {
-    private static HashMap<String, Val> globalVals = new HashMap<>();
+    private static ArrayList<Val> globalVals = new ArrayList<>();
     private static HashMap<String, String> operations = new HashMap<>();
     private static ArrayList<String> middleCodes = new ArrayList<>();
     // 当前符号表
@@ -34,6 +34,15 @@ public class TargetCode {
         convertContent();
     }
 
+    private static int getGlobalAddr(String name) {
+        for (Val val : globalVals) {
+            if (val.getName().equals(name)) {
+                return val.getAddress();
+            }
+        }
+        return 0;
+    }
+
     public static boolean isInteger(String str) {
         if (str == null) {
             System.out.println("The error is in line " + line);
@@ -51,7 +60,7 @@ public class TargetCode {
         }
         if (isInteger(name)) {
             String kr = "$k" + kReg;
-            FileStream.mipsOutput("li $k" + kReg + "," + Integer.parseInt(name));
+            FileStream.mipsOutput("li $k" + kReg + "," + Parser.str2int(name));
             kReg = 1 - kReg;
             return kr;
         }
@@ -61,7 +70,7 @@ public class TargetCode {
         if (pure[0].contains("<global>")) {
             // s<global>[4]
             String[] pureName = name.split("[<>\\[\\]]");
-            int addr = globalVals.get(pureName[0]).getAddress();
+            int addr = getGlobalAddr(pureName[0]);
             if (name.contains("[")) {
                 // 含数组形式
                 Matcher matcher = arrayPattern.matcher(name);
@@ -77,7 +86,7 @@ public class TargetCode {
                     }
                     if (curName.contains("<global>")) {
                         String st = curName.split("<")[0];
-                        int raddr = globalVals.get(st).getAddress();
+                        int raddr = getGlobalAddr(st);
                         FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
                         FileStream.mipsOutput("sll $t8,$t8,2");
                         FileStream.mipsOutput("add $t8,$t8,$gp");
@@ -133,7 +142,7 @@ public class TargetCode {
                     }
                     if (curName.contains("<global>")) {
                         String st = curName.split("<")[0];
-                        int raddr = globalVals.get(st).getAddress();
+                        int raddr = getGlobalAddr(st);
                         FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
                         FileStream.mipsOutput("sll $t8,$t8,2");
                         FileStream.mipsOutput("add $t8,$t8,$fp");
@@ -160,7 +169,7 @@ public class TargetCode {
                     }
                 } else {
                     // 4 (bias)
-                    x = Integer.parseInt(res);
+                    x = Parser.str2int(res);
                     FileStream.mipsOutput("lw " + sRegister + "," + x + "($fp)");
                 }
                 return sRegister;
@@ -202,7 +211,7 @@ public class TargetCode {
             FileStream.mipsOutput("lw " + sRegister + ",0($t8)");
         } else if (index.contains("<global>")) {
             String[] pureName = index.split("[<>]");
-            int addr = globalVals.get(pureName[0]).getAddress();
+            int addr = getGlobalAddr(pureName[0]);
             FileStream.mipsOutput("lw $t8," + addr + "($gp)");
             FileStream.mipsOutput("sll $t8,$t8,2");
             FileStream.mipsOutput("add $t8,$t8," + reg);
@@ -224,7 +233,7 @@ public class TargetCode {
         if (pure[0].contains("<global>")) {
             // s<global>[4]
             String[] pureName = name.split("[<>\\[\\]]");
-            int addr = globalVals.get(pureName[0]).getAddress();
+            int addr = getGlobalAddr(pureName[0]);
             if (name.contains("[")) {
                 // 含数组形式
                 Matcher matcher = arrayPattern.matcher(name);
@@ -240,7 +249,7 @@ public class TargetCode {
                     }
                     if (curName.contains("<global>")) {
                         String st = curName.split("<")[0];
-                        int raddr = globalVals.get(st).getAddress();
+                        int raddr = getGlobalAddr(st);
                         FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
                         FileStream.mipsOutput("sll $t8,$t8,2");
                         FileStream.mipsOutput("add $t8,$t8,$gp");
@@ -297,7 +306,7 @@ public class TargetCode {
                     }
                     if (curName.contains("<global>")) {
                         String st = curName.split("<")[0];
-                        int raddr = globalVals.get(st).getAddress();
+                        int raddr = getGlobalAddr(st);
                         FileStream.mipsOutput("lw $t8," + raddr + "($gp)");
                         FileStream.mipsOutput("sll $t8,$t8,2");
                         FileStream.mipsOutput("add $t8,$t8,$fp");
@@ -366,7 +375,7 @@ public class TargetCode {
             FileStream.mipsOutput("sw " + regStore + ",0($t8)");
         } else if (index.contains("<global>")) {
             String[] pureName = index.split("[<>]");
-            int addr = globalVals.get(pureName[0]).getAddress();
+            int addr = getGlobalAddr(pureName[0]);
             FileStream.mipsOutput("lw $t8," + addr + "($gp)");
             FileStream.mipsOutput("sll $t8,$t8,2");
             FileStream.mipsOutput("add $t8,$t8," + reg);
@@ -384,14 +393,12 @@ public class TargetCode {
 
     private static void beginData() {
         FileStream.mipsOutput(".data");
-        globalVals = SymbolTable.getGlobalVals();
+        globalVals = new ArrayList<>(SymbolTable.getGlobalVals().values());
         int addr = 0;
-        for (Map.Entry<String, Val> entry : globalVals.entrySet()) {
-            if (!entry.getValue().isConst()) {
-                FileStream.mipsOutput(entry.getKey() + ": .space " + entry.getValue().getSize());
-                entry.getValue().setAddress(addr);
-                addr += entry.getValue().getSize();
-            }
+        for (Val globalVal : globalVals) {
+            FileStream.mipsOutput(globalVal.getName() + ": .space" + globalVal.getSize());
+            globalVal.setAddress(addr);
+            addr += globalVal.getSize();
         }
         HashMap<String, String> strs = MiddleCode.getStrings();
         for (Map.Entry<String, String> entry : strs.entrySet()) {
@@ -644,7 +651,7 @@ public class TargetCode {
             FileStream.mipsOutput("sll $t8," + rt + ",2");
             if (strings[1].contains("<global>")) {
                 String globalV = strings[1].split("<")[0];
-                int addr = globalVals.get(globalV).getAddress();
+                int addr = getGlobalAddr(globalV);
                 FileStream.mipsOutput("add $t8,$t8,$gp");
                 FileStream.mipsOutput("addi $t8,$t8," + addr);
             } else {
@@ -736,7 +743,7 @@ class FuncSymbolTable {
         this.prev = prev;
         symbols = new HashMap<>();
         temSymbols = new HashMap<>();
-        tRegister = new boolean[]{true,true,true,true,true};
+        tRegister = new boolean[]{true, true, true, true, true};
     }
 
     public FuncSymbolTable getPrev() {
