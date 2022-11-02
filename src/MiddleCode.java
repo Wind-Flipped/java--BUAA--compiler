@@ -53,12 +53,12 @@ public class MiddleCode {
 
     }
 
-    public static String callFunc(String name,String returnType) {
+    public static String callFunc(String name, String returnType) {
         FileStream.middleCodeOutput("#call " + name);
         if (returnType.equals("int")) {
             FileStream.middleCodeOutput("@t" + i + " = @RETURN");
             i++;
-            return "@t" + (i-1);
+            return "@t" + (i - 1);
         }
         return "@RETURN";
     }
@@ -175,7 +175,7 @@ public class MiddleCode {
                 if (TargetCode.isInteger(res1)) {
                     if (op.equals("+")) {
                         return res1;
-                    } else if (op.equals("-")){
+                    } else if (op.equals("-")) {
                         if (res1.charAt(0) == '-') {
                             return res1.substring(1);
                         } else {

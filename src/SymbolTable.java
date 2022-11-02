@@ -28,13 +28,14 @@ public class SymbolTable {
         para.clear();
     }
 
-    public static boolean addPara(String name, int dimension, int dimen1,int dimen2) {
-        if (para.contains(new Val(false, 0, name,dimen1,dimen2,false))) {
+    public static boolean addPara(String name, int dimension, int dimen1, int dimen2) {
+        if (para.contains(new Val(false, 0, name, dimen1, dimen2, false))) {
             return false;
         }
-        para.add(new Val(false, dimension, name,dimen1,dimen2,false));
+        para.add(new Val(false, dimension, name, dimen1, dimen2, false));
         return true;
     }
+
     /*
     public void addPartPara(String name, int dimension,int dimen1,int dimen2) {
         partPara.add(new Val(false, dimension, name,dimen1,dimen2,false));
@@ -48,31 +49,32 @@ public class SymbolTable {
         return funcs.get(name).getReturnType();
     }
 
-    public boolean funcParaNumCorrect(String name,ArrayList<Integer> curVals) {
+    public boolean funcParaNumCorrect(String name, ArrayList<Integer> curVals) {
         return funcs.get(name).getParaNum() == curVals.size();
     }
 
-    public boolean funcParaTypeCorrect(String name,ArrayList<Integer> curVals) {
+    public boolean funcParaTypeCorrect(String name, ArrayList<Integer> curVals) {
         return funcs.get(name).compareType(curVals);
     }
+
     /*
     public void clearPartPara() {
         partPara.clear();
     }
     */
-    public static boolean addGlobalVal(String name, boolean isConst, int dimension,int dimen1,int dimen2) {
+    public static boolean addGlobalVal(String name, boolean isConst, int dimension, int dimen1, int dimen2) {
         if (globalVals.containsKey(name) || funcs.containsKey(name)) {
             return false;
         }
-        globalVals.put(name, new Val(isConst, dimension, name,dimen1,dimen2,true));
+        globalVals.put(name, new Val(isConst, dimension, name, dimen1, dimen2, true));
         return true;
     }
 
-    public boolean addVal(String name, boolean isConst, int dimension,int dimen1,int dimen2,int curLayer) {
-        if (vals.containsKey(name) || (curLayer == 1 && para.contains(new Val(false, 0, name,dimen1,dimen2,false)))) {
+    public boolean addVal(String name, boolean isConst, int dimension, int dimen1, int dimen2, int curLayer) {
+        if (vals.containsKey(name) || (curLayer == 1 && para.contains(new Val(false, 0, name, dimen1, dimen2, false)))) {
             return false;
         }
-        vals.put(name, new Val(isConst, dimension, name,dimen1,dimen2,false));
+        vals.put(name, new Val(isConst, dimension, name, dimen1, dimen2, false));
         return true;
     }
 
@@ -167,7 +169,7 @@ class Val {
         return Objects.hash(name);
     }
 
-    public Val(boolean isConst, int dimen, String name, int dimen1, int dimen2,boolean isGlobal) {
+    public Val(boolean isConst, int dimen, String name, int dimen1, int dimen2, boolean isGlobal) {
         // 行 列 default is 1 * 1
         this.isGlobal = isGlobal;
         this.isConst = isConst;
@@ -208,7 +210,7 @@ class Val {
     public void setValue(int value) {
         // 行 列 default is -1
         if (getDimension() == 2) {
-            values[constDimen1*dimension.get(1)+constDimen2] = value;
+            values[constDimen1 * dimension.get(1) + constDimen2] = value;
             constDimen2++;
             if (constDimen2 == dimension.get(1)) {
                 constDimen1++;
@@ -231,7 +233,7 @@ class Val {
                 return values[dimen1];
             }
         } else {
-            return values[dimen1*dimension.get(1)+dimen2];
+            return values[dimen1 * dimension.get(1) + dimen2];
         }
     }
 
