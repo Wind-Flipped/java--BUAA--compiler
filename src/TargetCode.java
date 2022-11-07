@@ -396,7 +396,7 @@ public class TargetCode {
         globalVals = new ArrayList<>(SymbolTable.getGlobalVals().values());
         int addr = 0;
         for (Val globalVal : globalVals) {
-            FileStream.mipsOutput(globalVal.getName() + ": .space" + globalVal.getSize());
+            FileStream.mipsOutput(globalVal.getName() + ": .space " + globalVal.getSize());
             globalVal.setAddress(addr);
             addr += globalVal.getSize();
         }
@@ -411,6 +411,7 @@ public class TargetCode {
         FileStream.mipsOutput("# set global variable pointer");
         FileStream.mipsOutput("li $gp,0x10010000");
         FileStream.mipsOutput("li $fp,0x10040000");
+        FileStream.mipsOutput("li $s7,0x10000000");
     }
 
     private static void convertContent() {
@@ -564,6 +565,11 @@ public class TargetCode {
     private static void funcBegin(String[] strings) {
         funcSymbolTable = new FuncSymbolTable(funcSymbolTable);
         FileStream.mipsOutput(strings[2] + ":");
+        FileStream.mipsOutput("sw $a0,0($s7)");
+        FileStream.mipsOutput("sw $a1,4($s7)");
+        FileStream.mipsOutput("sw $a2,8($s7)");
+        FileStream.mipsOutput("sw $a3,12($s7)");
+
     }
 
     private static void funcEnd() {
@@ -632,19 +638,20 @@ public class TargetCode {
     }
 
     private static void callPre() {
-        FileStream.mipsOutput("sw $ra,-4($sp)");
-        FileStream.mipsOutput("sw $a0,-8($sp)");
-        FileStream.mipsOutput("sw $a1,-12($sp)");
-        FileStream.mipsOutput("sw $a2,-16($sp)");
-        FileStream.mipsOutput("sw $a3,-20($sp)");
+        FileStream.mipsOutput("sw $a0,-4($sp)");
+        FileStream.mipsOutput("sw $a1,-8($sp)");
+        FileStream.mipsOutput("sw $a2,-12($sp)");
+        FileStream.mipsOutput("sw $a3,-16($sp)");
+        FileStream.mipsOutput("addi $sp,$sp,-16");
     }
 
     private static void push(String[] strings) {
         //TODO 区分地址和值传递
         String rparaName = strings[1];
         String rs;
-        if (strings.length == 4) {
-            // addr : #push ss [0] <addr>
+        rPara = Parser.str2int(strings[strings.length - 1]);
+        if (strings.length == 5) {
+            // addr : #push ss [0] <addr> 2
             // get [??]
             String rt = strings[2].substring(1, strings[2].length() - 1);
             rt = findSymbolsLoad(rt);
@@ -672,7 +679,7 @@ public class TargetCode {
             if (rs.contains("$a")) {
                 // 参数寄存器
                 int num = Integer.parseInt(rs.substring(2));
-                FileStream.mipsOutput("lw $t5,-" + (8 + num * 4) + "($sp)");
+                FileStream.mipsOutput("lw $t5," + (num * 4) + "($s7)");
                 rs = "$t5";
             }
         }
@@ -686,35 +693,37 @@ public class TargetCode {
 
     private static void call(String funcName) {
         rPara = 0;
+        v0 = 0;
         FileStream.mipsOutput("addi $fp,$fp," + funcSymbolTable.getAddr());
-        FileStream.mipsOutput("sw $t0,-24($sp)");
-        FileStream.mipsOutput("sw $t1,-28($sp)");
-        FileStream.mipsOutput("sw $t2,-32($sp)");
-        FileStream.mipsOutput("sw $t3,-36($sp)");
-        FileStream.mipsOutput("sw $t4,-40($sp)");
-        FileStream.mipsOutput("sw $s0,-44($sp)");
-        FileStream.mipsOutput("sw $s1,-48($sp)");
-        FileStream.mipsOutput("addi $sp,$sp,-48");
+        FileStream.mipsOutput("sw $t0,-4($sp)");
+        FileStream.mipsOutput("sw $t1,-8($sp)");
+        FileStream.mipsOutput("sw $t2,-12($sp)");
+        FileStream.mipsOutput("sw $t3,-16($sp)");
+        FileStream.mipsOutput("sw $t4,-20($sp)");
+        FileStream.mipsOutput("sw $ra,-24($sp)");
+        FileStream.mipsOutput("sw $s7,-28($sp)");
+        FileStream.mipsOutput("addi $s7,$s7,16");
+        FileStream.mipsOutput("addi $sp,$sp,-28");
         FileStream.mipsOutput("jal " + funcName);
-        FileStream.mipsOutput("addi $sp,$sp,48");
-        FileStream.mipsOutput("lw $ra,-4($sp)");
-        FileStream.mipsOutput("lw $a0,-8($sp)");
-        FileStream.mipsOutput("lw $a1,-12($sp)");
-        FileStream.mipsOutput("lw $a2,-16($sp)");
-        FileStream.mipsOutput("lw $a3,-20($sp)");
+        FileStream.mipsOutput("addi $sp,$sp,44");
+        FileStream.mipsOutput("lw $a0,-4($sp)");
+        FileStream.mipsOutput("lw $a1,-8($sp)");
+        FileStream.mipsOutput("lw $a2,-12($sp)");
+        FileStream.mipsOutput("lw $a3,-16($sp)");
         FileStream.mipsOutput("addi $fp,$fp," + (-funcSymbolTable.getAddr()));
-        FileStream.mipsOutput("lw $t0,-24($sp)");
-        FileStream.mipsOutput("lw $t1,-28($sp)");
-        FileStream.mipsOutput("lw $t2,-32($sp)");
-        FileStream.mipsOutput("lw $t3,-36($sp)");
-        FileStream.mipsOutput("lw $t4,-40($sp)");
-        FileStream.mipsOutput("lw $s0,-44($sp)");
-        FileStream.mipsOutput("lw $s1,-48($sp)");
+        FileStream.mipsOutput("lw $t0,-20($sp)");
+        FileStream.mipsOutput("lw $t1,-24($sp)");
+        FileStream.mipsOutput("lw $t2,-28($sp)");
+        FileStream.mipsOutput("lw $t3,-32($sp)");
+        FileStream.mipsOutput("lw $t4,-36($sp)");
+        FileStream.mipsOutput("lw $ra,-40($sp)");
+        FileStream.mipsOutput("lw $s7,-44($sp)");
     }
 
     private static void ret(String[] strings) {
         if (strings.length > 1) {
             FileStream.mipsOutput("move $v0," + findSymbolsLoad(strings[1]));
+            v0 = 0;
         }
         FileStream.mipsOutput("jr $ra");
     }
@@ -797,6 +806,10 @@ class FuncSymbolTable {
             return "$t6";
         }
         return null;
+    }
+
+    public void addAddr(int num) {
+        addr += num;
     }
 
     public int getAddr() {

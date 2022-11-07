@@ -38,7 +38,7 @@ public class MiddleCode {
         }
     }
 
-    public static void rParaDecl(String name) {
+    public static void rParaDecl(String name,int num) {
         // no dimen1 , dimen2
         /*
         if (dimen1 != null && dimen2 != null) {
@@ -49,7 +49,7 @@ public class MiddleCode {
             FileStream.middleCodeOutput("push " + name);
         }
         */
-        FileStream.middleCodeOutput("#push " + name);
+        FileStream.middleCodeOutput("#push " + name + " " + (num - 1));
 
     }
 

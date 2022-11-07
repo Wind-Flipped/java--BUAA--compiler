@@ -813,12 +813,12 @@ public class Parser {
             // curTable.addPartPara(null, curValDimension, 0, 0);
             curVals.add(curValDimension);
             curValDimension = 0;
-            MiddleCode.rParaDecl(exp);
+            MiddleCode.rParaDecl(exp,curVals.size());
             while (curToken.equals(",")) {
                 getToken();
                 exp = exp();
                 curVals.add(curValDimension);
-                MiddleCode.rParaDecl(exp);
+                MiddleCode.rParaDecl(exp,curVals.size());
                 // curTable.addPartPara(null, curValDimension, 0, 0);
                 curValDimension = 0;
             }
