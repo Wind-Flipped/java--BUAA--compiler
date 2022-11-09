@@ -11,7 +11,8 @@ public class Lexer {
     private String curToken;
 
     private String pureString;
-    private int curFormatPattern;
+    // printf cross lines
+    private static int curFormatPattern = 0;
     private String[] splitString;
 
     private boolean inString; // 字符串中
@@ -39,7 +40,6 @@ public class Lexer {
         pos = 0;
         inString = false;
         lineNote = false;
-        curFormatPattern = 0;
         pureString = null;
     }
 

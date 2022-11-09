@@ -10,6 +10,7 @@ public class MiddleCode {
     private static String varName = null;
     private static int varDimen1 = 0;
     private static int varDimen2 = 0;
+    private static int labelNum = 0;
 
     public static HashMap<String, String> getStrings() {
         return strings;
@@ -38,7 +39,7 @@ public class MiddleCode {
         }
     }
 
-    public static void rParaDecl(String name) {
+    public static void rParaDecl(String name, int num) {
         // no dimen1 , dimen2
         /*
         if (dimen1 != null && dimen2 != null) {
@@ -49,7 +50,7 @@ public class MiddleCode {
             FileStream.middleCodeOutput("push " + name);
         }
         */
-        FileStream.middleCodeOutput("#push " + name);
+        FileStream.middleCodeOutput("#push " + name + " " + (num - 1));
 
     }
 
@@ -154,6 +155,18 @@ public class MiddleCode {
                     return String.valueOf(n1 / n2);
                 case "%":
                     return String.valueOf(n1 % n2);
+                case ">":
+                    return (n1 > n2) ? "1" : "0";
+                case ">=":
+                    return (n1 >= n2) ? "1" : "0";
+                case "<":
+                    return (n1 < n2) ? "1" : "0";
+                case "<=":
+                    return (n1 <= n2) ? "1" : "0";
+                case "==":
+                    return (n1 == n2) ? "1" : "0";
+                case "!=":
+                    return (n1 != n2) ? "1" : "0";
                 default://TODO 其他运算，包括关系运算等
                     return "error";
             }
@@ -172,6 +185,7 @@ public class MiddleCode {
             if (res2 != null) {
                 FileStream.middleCodeOutput(des + " = " + res1 + " " + op + " " + res2);
             } else {
+                // 单目运算符
                 if (TargetCode.isInteger(res1)) {
                     if (op.equals("+")) {
                         return res1;
@@ -180,6 +194,12 @@ public class MiddleCode {
                             return res1.substring(1);
                         } else {
                             return "-" + res1;
+                        }
+                    } else if (op.equals("!")) {
+                        if (res1.equals("0")) {
+                            return "1";
+                        } else {
+                            return "0";
                         }
                     }
                 }
@@ -244,5 +264,23 @@ public class MiddleCode {
             strings.put(str1, str);
             FileStream.middleCodeOutput("#printString " + str1);
         }
+    }
+
+    public static void branch(String value, String label, boolean condition) {
+        FileStream.middleCodeOutput("#branch " + value + " " + label + " " + condition);
+    }
+
+    public static String initLabel() {
+        String label = "label" + labelNum;
+        labelNum++;
+        return label;
+    }
+
+    public static void setLable(String label) {
+        FileStream.middleCodeOutput("#setLabel " + label);
+    }
+
+    public static void jump(String label) {
+        FileStream.middleCodeOutput("#jump " + label);
     }
 }

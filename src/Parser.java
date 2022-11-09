@@ -12,8 +12,10 @@ public class Parser {
     private boolean hasReturn; // 当前是否为末尾的return
     private String curLval; // 当前lval
     private int loopLayer; // 当前循环层数
-    private int curValDimension; // 当前变量维数
+    // private int curValDimension; // 当前变量维数
     private String btype; // 当前btype，目前只有int类型
+    private ArrayList<String> loopBeginLabel;
+    private ArrayList<String> loopEndLabel;
 
     public static boolean hasError = false;
 
@@ -40,8 +42,10 @@ public class Parser {
         hasReturn = false;
         curLval = null;
         loopLayer = 0;
-        curValDimension = 0;
+        // curValDimension = 0;
         formerLine = 0;
+        loopBeginLabel = new ArrayList<>();
+        loopEndLabel = new ArrayList<>();
     }
 
     private void error(String c) {
@@ -155,7 +159,7 @@ public class Parser {
         } else {
             error("const val not assgin init value");
         }
-        if (constInitVal(val,dimen1,dimen2)) {
+        if (constInitVal(val, dimen1, dimen2)) {
             FileStream.output("<ConstDef>");
             return true;
         } else {
@@ -164,7 +168,7 @@ public class Parser {
         }
     }
 
-    private boolean constInitVal(Val val,int dimen1,int dimen2) {
+    private boolean constInitVal(Val val, int dimen1, int dimen2) {
         String constExp = constExp();
         if (constExp != null) {
             FileStream.output("<ConstInitVal>");
@@ -176,18 +180,18 @@ public class Parser {
         } else {
             if (curToken.equals("{")) {
                 getToken();
-                if (constInitVal(val,dimen1,dimen2)) {
+                if (constInitVal(val, dimen1, dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        constInitVal(val,dimen1,dimen2);
+                        constInitVal(val, dimen1, dimen2);
                     }
                 } else {
                     error("lack }");
                 }
-                while (constInitVal(val,dimen1,dimen2)) {
+                while (constInitVal(val, dimen1, dimen2)) {
                     while (curToken.equals(",")) {
                         getToken();
-                        constInitVal(val,dimen1,dimen2);
+                        constInitVal(val, dimen1, dimen2);
                     }
                 }
                 if (curToken.equals("}")) {
@@ -484,9 +488,10 @@ public class Parser {
         if (lvalAssign()) {
             hasReturn = false;
             String lval = lval();
+            /* TODO 判断错误类型 h
             if (curTable.isConstVal(curLval)) {
                 error("h");
-            }
+            } */
             if (curToken.equals("=")) {
                 getToken();
                 exp = exp();
@@ -534,9 +539,10 @@ public class Parser {
         } else if (tag.equals("IFTK")) {
             hasReturn = false;
             getToken();
+            String jumpLableIf = MiddleCode.initLabel();
             if (curToken.equals("(")) {
                 getToken();
-                cond();
+                cond(jumpLableIf);
                 if (curToken.equals(")")) {
                     getToken();
                 } else {
@@ -545,8 +551,16 @@ public class Parser {
             }
             stmt();
             if (tag.equals("ELSETK")) {
+                // if end --> jump
+                String jumpLabelElse = MiddleCode.initLabel();
+                MiddleCode.jump(jumpLabelElse);
                 getToken();
+                // else begin label
+                MiddleCode.setLable(jumpLableIf);
                 stmt();
+                MiddleCode.setLable(jumpLabelElse);
+            } else {
+                MiddleCode.setLable(jumpLableIf);
             }
             FileStream.output("<Stmt>");
             return true;
@@ -554,9 +568,14 @@ public class Parser {
             hasReturn = false;
             loopLayer++;
             getToken();
+            String beginWhileLabel = MiddleCode.initLabel();
+            loopBeginLabel.add(beginWhileLabel);
+            String jumpLabelWhile = MiddleCode.initLabel();
+            loopEndLabel.add(jumpLabelWhile);
             if (curToken.equals("(")) {
                 getToken();
-                cond();
+                MiddleCode.setLable(beginWhileLabel);
+                cond(jumpLabelWhile);
                 if (curToken.equals(")")) {
                     getToken();
                 } else {
@@ -564,12 +583,23 @@ public class Parser {
                 }
             }
             stmt();
+            MiddleCode.jump(beginWhileLabel);
+            MiddleCode.setLable(jumpLabelWhile);
             loopLayer--;
+            loopBeginLabel.remove(loopLayer);
+            loopEndLabel.remove(loopLayer);
             FileStream.output("<Stmt>");
             return true;
         } else if (tag.equals("BREAKTK") || tag.equals("CONTINUETK")) {
             if (loopLayer == 0) {
                 error("m");
+                getToken();
+                return true;
+            }
+            if (tag.equals("BREAKTK")) {
+                MiddleCode.jump(loopEndLabel.get(loopLayer - 1));
+            } else {
+                MiddleCode.jump(loopBeginLabel.get(loopLayer - 1));
             }
             hasReturn = false;
             getToken();
@@ -647,12 +677,9 @@ public class Parser {
         return null;
     }
 
-    private boolean cond() {
-        if (lOrExp()) {
-            FileStream.output("<Cond>");
-            return true;
-        }
-        return false;
+    private void cond(String jumpLable) {
+        lOrExp(jumpLable);
+        FileStream.output("<Cond>");
     }
 
     private boolean lvalAssign() {
@@ -660,6 +687,7 @@ public class Parser {
     }
 
     private String lval() {
+        int curValDimension = 0;
         if (tag.equals("IDENFR")) {
             curLval = curToken;
             String lval = curToken;
@@ -754,6 +782,7 @@ public class Parser {
     private String number() {
         if (tag.equals("INTCON")) {
             String num = curToken;
+            // curValDimension = 0;
             getToken();
             FileStream.output("<Number>");
             return num;
@@ -809,16 +838,17 @@ public class Parser {
     private boolean funcRParams(String name) {
         String exp = exp();
         ArrayList<Integer> curVals = new ArrayList<>();
+        int curValDimension = 0;
         if (exp != null) {
             // curTable.addPartPara(null, curValDimension, 0, 0);
             curVals.add(curValDimension);
             curValDimension = 0;
-            MiddleCode.rParaDecl(exp);
+            MiddleCode.rParaDecl(exp, curVals.size());
             while (curToken.equals(",")) {
                 getToken();
                 exp = exp();
                 curVals.add(curValDimension);
-                MiddleCode.rParaDecl(exp);
+                MiddleCode.rParaDecl(exp, curVals.size());
                 // curTable.addPartPara(null, curValDimension, 0, 0);
                 curValDimension = 0;
             }
@@ -830,10 +860,11 @@ public class Parser {
             } else {
                 curValDimension = 4396;
             }
-            if (curTable.funcParaNumCorrect(name,curVals)) {
-                if (!curTable.funcParaTypeCorrect(name,curVals)) {
+            if (curTable.funcParaNumCorrect(name, curVals)) {
+                /* // TODO 如何判断错误类型 e
+                if (!curTable.funcParaTypeCorrect(name, curVals)) {
                     error("e");
-                }
+                } */
             } else {
                 error("d");
             }
@@ -889,20 +920,16 @@ public class Parser {
         return mul1;
     }
 
-    private boolean relExp() {
+    private String relExp() {
         String addExp = addExp();
         //TODO something is not finished
         if (addExp != null) {
             FileStream.output("<RelExp>");
-            if (curToken.equals("<") || curToken.equals(">") || curToken.equals("<=") || curToken.equals(">=")) {
-                getToken();
-                relExp();
-            }
-            return true;
+            return relExpT(addExp);
         }
-        return false;
+        return null;
     }
-    /*
+
     private String relExpT(String addExp1) {
         String token = null;
         // String add = null;
@@ -910,25 +937,22 @@ public class Parser {
             token = curToken;
             getToken();
             String addExp2 = addExp();
-            FileStream.output("<AddExp>");
-            String result = MiddleCode.algorithmOp(addExp1,addExp2,token);
+            FileStream.output("<RelExp>");
+            String result = MiddleCode.algorithmOp(addExp1, addExp2, token);
             return relExpT(result);
         }
         return addExp1;
-    } */
-
-    private boolean eqExp() {
-        if (relExp()) {
-            FileStream.output("<EqExp>");
-            if (curToken.equals("==") || curToken.equals("!=")) {
-                getToken();
-                eqExp();
-            }
-            return true;
-        }
-        return false;
     }
-    /*
+
+    private String eqExp() {
+        String relExp = relExp();
+        if (relExp != null) {
+            FileStream.output("<EqExp>");
+            return eqExpT(relExp);
+        }
+        return null;
+    }
+
     private String eqExpT(String relExp1) {
         String token = null;
         // String add = null;
@@ -936,35 +960,52 @@ public class Parser {
             token = curToken;
             getToken();
             String relExp2 = relExp();
-            FileStream.output("<AddExp>");
-            String result = MiddleCode.algorithmOp(relExp1,relExp2,token);
-            return relExpT(result);
+            FileStream.output("<EqExp>");
+            String result = MiddleCode.algorithmOp(relExp1, relExp2, token);
+            return eqExpT(result);
         }
         return relExp1;
-    } */
-
-    private boolean lAndExp() {
-        if (eqExp()) {
-            FileStream.output("<LAndExp>");
-            if (curToken.equals("&&")) {
-                getToken();
-                lAndExp();
-            }
-            return true;
-        }
-        return false;
     }
 
-    private boolean lOrExp() {
-        if (lAndExp()) {
-            FileStream.output("<LOrExp>");
-            if (curToken.equals("||")) {
-                getToken();
-                lOrExp();
-            }
-            return true;
+    private void lAndExp(String label2) {
+        String eqExp = eqExp();
+        if (eqExp != null) {
+            FileStream.output("<LAndExp>");
+            String label1 = MiddleCode.initLabel();
+            lAndExpT(eqExp, label1, label2);
         }
-        return false;
+    }
+
+    private void lAndExpT(String value, String label1, String label2) {
+        if (curToken.equals("&&")) {
+            MiddleCode.branch(value, label1, false);
+            getToken();
+            String eqExp = eqExp();
+            FileStream.output("<LAndExp>");
+            lAndExpT(eqExp, label1, label2);
+        } else {
+            MiddleCode.branch(value, label2, true);
+            MiddleCode.setLable(label1);
+        }
+    }
+
+    private void lOrExp(String jumpLabel) {
+        String label2 = MiddleCode.initLabel();
+        lAndExp(label2);
+        FileStream.output("<LOrExp>");
+        lOrExpT(label2, jumpLabel);
+    }
+
+    private void lOrExpT(String label2, String jumpLabel) {
+        if (curToken.equals("||")) {
+            getToken();
+            lAndExp(label2);
+            FileStream.output("<LOrExp>");
+            lOrExpT(label2, jumpLabel);
+        } else {
+            MiddleCode.jump(jumpLabel);
+            MiddleCode.setLable(label2);
+        }
     }
 
     private String constExp() {
