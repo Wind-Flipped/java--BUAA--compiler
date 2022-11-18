@@ -12,7 +12,7 @@ public class Parser {
     private boolean hasReturn; // 当前是否为末尾的return
     private String curLval; // 当前lval
     private int loopLayer; // 当前循环层数
-    // private int curValDimension; // 当前变量维数
+    private int curValDimension; // 当前变量维数
     private String btype; // 当前btype，目前只有int类型
     private ArrayList<String> loopBeginLabel;
     private ArrayList<String> loopEndLabel;
@@ -487,8 +487,8 @@ public class Parser {
         String exp = null;
         if (lvalAssign()) {
             hasReturn = false;
-            String lval = lval();
-            /* TODO 判断错误类型 h
+            String lval = lval(true);
+            /*
             if (curTable.isConstVal(curLval)) {
                 error("h");
             } */
@@ -686,8 +686,8 @@ public class Parser {
         return tag.equals("IDENFR") && lexer.watchAssign().equals("=");
     }
 
-    private String lval() {
-        int curValDimension = 0;
+    private String lval(boolean isAssgin) {
+        int valueDimension = 0;
         if (tag.equals("IDENFR")) {
             curLval = curToken;
             String lval = curToken;
@@ -702,15 +702,19 @@ public class Parser {
             if (val == null) {
                 error("c");
             } else {
+                if (isAssgin && val.isConst()) {
+                    // 赋值语句修改了常量值
+                    error("h");
+                }
                 coDimen = val.getCoDimen();
-                curValDimension = val.getDimension();
+                valueDimension = val.getDimension();
             }
             getToken();
             String dimen1 = null;
             String dimen2 = null;
             int i = 1;
             while (curToken.equals("[")) {
-                curValDimension--;
+                valueDimension--;
                 getToken();
                 if (i == 1) {
                     dimen1 = exp();
@@ -725,6 +729,7 @@ public class Parser {
                     error("k");
                 }
             }
+            curValDimension = valueDimension;
             FileStream.output("<LVal>");
             if (hasError) {
                 return "error";
@@ -750,7 +755,7 @@ public class Parser {
                 }
                 return String.valueOf(val.getValue(i1, i2));
             } catch (Exception e) {
-                return MiddleCode.deDimen(lval, dimen1, dimen2, coDimen, curValDimension);
+                return MiddleCode.deDimen(lval, dimen1, dimen2, coDimen, valueDimension);
             }
         }
         return null;
@@ -769,7 +774,7 @@ public class Parser {
             }
             FileStream.output("<PrimaryExp>");
             return primaryExp;
-        } else if ((lval = lval()) != null) {
+        } else if ((lval = lval(false)) != null) {
             FileStream.output("<PrimaryExp>");
             return lval;
         } else if ((number = number()) != null) {
@@ -782,7 +787,7 @@ public class Parser {
     private String number() {
         if (tag.equals("INTCON")) {
             String num = curToken;
-            // curValDimension = 0;
+            curValDimension = 0;
             getToken();
             FileStream.output("<Number>");
             return num;
@@ -807,7 +812,6 @@ public class Parser {
             } else {
                 error("j");
             }
-
             // curTable.clearPartPara();
             FileStream.output("<UnaryExp>");
             if (hasError) {
@@ -838,7 +842,7 @@ public class Parser {
     private boolean funcRParams(String name) {
         String exp = exp();
         ArrayList<Integer> curVals = new ArrayList<>();
-        int curValDimension = 0;
+        // int curValDimension = 0;
         if (exp != null) {
             // curTable.addPartPara(null, curValDimension, 0, 0);
             curVals.add(curValDimension);
@@ -861,10 +865,10 @@ public class Parser {
                 curValDimension = 4396;
             }
             if (curTable.funcParaNumCorrect(name, curVals)) {
-                /* // TODO 如何判断错误类型 e
+                // TODO 如何判断错误类型 e
                 if (!curTable.funcParaTypeCorrect(name, curVals)) {
                     error("e");
-                } */
+                }
             } else {
                 error("d");
             }
@@ -922,7 +926,6 @@ public class Parser {
 
     private String relExp() {
         String addExp = addExp();
-        //TODO something is not finished
         if (addExp != null) {
             FileStream.output("<RelExp>");
             return relExpT(addExp);
