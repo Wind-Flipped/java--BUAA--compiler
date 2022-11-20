@@ -20,6 +20,11 @@ public class TargetCode {
     private static int sReg = 0;
     // func layer
     private static int funcLayer = 0;
+    // 当前函数体有多少参数。
+    private static int funcPara = 0;
+    // 当前函数调用实参序数
+    private static int pushRPara = 0;
+    private static ArrayList<Integer> pushStack = new ArrayList<>();
 
     private static final Pattern arrayPattern = Pattern.compile("\\[(?<array>.*?)]$");
 
@@ -502,7 +507,8 @@ public class TargetCode {
     }
 
     private static void convertContent() {
-        middleCodes = FileStream.getMiddleCodes();
+        // TODO
+        middleCodes = FileStream.getOptimizeCodes();
         while (true) {
             String[] strings = middleCodes.get(line).split("\\s");
             line++;
@@ -620,6 +626,97 @@ public class TargetCode {
         }
     }
 
+    private static int isPowerOfTwo(int x) {
+        if ((x & (x - 1)) != 0) {
+            return -1;
+        } else {
+            return Integer.toBinaryString(x).length() - 1;
+        }
+    }
+
+    private static boolean opOptimization(String name1, String name2, String name3, String calculate) {
+        // 假设只可能是name3为数字（中间代码保证）
+        if (calculate.equals("mul")) {
+            if (isInteger(name3)) {
+                int x1 = Parser.str2int(name3);
+                if (x1 < 0) {
+                    int x = -x1;
+                    int res = isPowerOfTwo(x);
+                    if (res == -1) {
+                        FileStream.mipsOutput("mul " + name1 + "," + name2 + "," + name3);
+                    } else {
+                        FileStream.mipsOutput("sll " + name1 + "," + name2 + "," + res);
+                        FileStream.mipsOutput("neg " + name1 + "," + name1);
+                    }
+                } else {
+                    int res = isPowerOfTwo(x1);
+                    if (res == -1) {
+                        FileStream.mipsOutput("mul " + name1 + "," + name2 + "," + name3);
+                    } else {
+                        FileStream.mipsOutput("sll " + name1 + "," + name2 + "," + res);
+                    }
+                }
+            }
+            return true;
+        } else if (calculate.equals("div")) {
+            if (isInteger(name3)) {
+                int x1 = Parser.str2int(name3);
+                if (x1 < 0) {
+                    int x = -x1;
+                    int res = isPowerOfTwo(x);
+                    if (res == -1) {
+                        /*
+                        res = Integer.toBinaryString(x).length() - 1;
+                        long mulFactor = (long) Math.pow(2, 32 + res);
+                        mulFactor /= x;
+                        FileStream.mipsOutput("li $t8," + mulFactor);
+                        FileStream.mipsOutput("multu " + name1 + ",$t8,");
+                        FileStream.mipsOutput("mfhi " + name1);
+                        FileStream.mipsOutput("sra " + name1 + "," + name1 + "," + res);
+                        FileStream.mipsOutput("neg " + name1 + "," + name1);
+                         */
+                        FileStream.mipsOutput("div " + name1 + "," + name2 + "," + name3);
+                    } else {
+                        FileStream.mipsOutput("sra " + name1 + "," + name2 + "," + res);
+                        FileStream.mipsOutput("neg " + name1 + "," + name1);
+                    }
+                } else {
+                    int res = isPowerOfTwo(x1);
+                    if (res == -1) {
+                        /*
+                        res = Integer.toBinaryString(x1).length() - 1;
+                        long mulFactor = (long) Math.pow(2, 32 + res);
+                        mulFactor /= x1;
+                        FileStream.mipsOutput("li $t8," + mulFactor);
+                        FileStream.mipsOutput("multu " + name1 + ",$t8,");
+                        FileStream.mipsOutput("mfhi " + name1);
+                        FileStream.mipsOutput("sra " + name1 + "," + name1 + "," + res);
+                        */
+
+                        FileStream.mipsOutput("div " + name1 + "," + name2 + "," + name3);
+                    } else {
+                        FileStream.mipsOutput("sra " + name1 + "," + name2 + "," + res);
+                    }
+                }
+            }
+            return true;
+        } else if (calculate.equals("yu")) {
+            int x1 = Parser.str2int(name3);
+            if (x1 > 0) {
+                int res = isPowerOfTwo(x1);
+                if (res == -1) {
+                    return false;
+                } else {
+                    FileStream.mipsOutput("andi " + name1 + "," + name2 + "," + (x1 - 1));
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        }
+        return false;
+    }
+
     private static void opration(String name1, String name2, String name3, String op) {
         String calculate = operations.get(op);
         String rs = name2;
@@ -627,8 +724,14 @@ public class TargetCode {
             // 单目运算符
             rs = findSymbolsLoad(name2);
         }
-        String rt = findSymbolsLoad(name3);
+
         if (name1.contains("[") && !name1.contains("@")) {
+            if (isInteger(name3)) {
+                if (opOptimization("$s2", rs, name3, calculate)) {
+                    return;
+                }
+            }
+            String rt = findSymbolsLoad(name3);
             if (!calculate.equals("yu")) {
                 FileStream.mipsOutput(calculate + " $s2," + rs + "," + rt);
             } else {
@@ -638,6 +741,12 @@ public class TargetCode {
             findSymbolsStore(name1, "$s2");
         } else {
             String rd = findSymbolsLoad(name1);
+            if (isInteger(name3)) {
+                if (opOptimization(rd, rs, name3, calculate)) {
+                    return;
+                }
+            }
+            String rt = findSymbolsLoad(name3);
             if (!calculate.equals("yu")) {
                 FileStream.mipsOutput(calculate + " " + rd + "," + rs + "," + rt);
                 if (rd.equals("$t6") || rd.equals("$t7")) {
@@ -654,18 +763,15 @@ public class TargetCode {
     }
 
     private static void mainBegin() {
+        funcPara = 0;
         funcSymbolTable = new FuncSymbolTable(funcSymbolTable);
         FileStream.mipsOutput("main:");
     }
 
     private static void funcBegin(String[] strings) {
+        funcPara = 0;
         funcSymbolTable = new FuncSymbolTable(funcSymbolTable);
         FileStream.mipsOutput(strings[2] + ":");
-        FileStream.mipsOutput("sw $a0,0($s7)");
-        FileStream.mipsOutput("sw $a1,4($s7)");
-        FileStream.mipsOutput("sw $a2,8($s7)");
-        FileStream.mipsOutput("sw $a3,12($s7)");
-
     }
 
     private static void funcEnd() {
@@ -674,6 +780,10 @@ public class TargetCode {
     }
 
     private static void para(String[] strings) {
+        if (funcPara <= 3) {
+            FileStream.mipsOutput("sw $a" + funcPara + "," + (funcPara * 4) + "($s7)");
+            funcPara++;
+        }
         if (strings.length > 3) {
             // get address
             funcSymbolTable.addParas(strings[2], "#");
@@ -726,15 +836,19 @@ public class TargetCode {
 
     private static void callPre() {
         funcLayer++;
-        FileStream.mipsOutput("sw $a0,-4($sp)");
-        FileStream.mipsOutput("sw $a1,-8($sp)");
-        FileStream.mipsOutput("sw $a2,-12($sp)");
-        FileStream.mipsOutput("sw $a3,-16($sp)");
-        FileStream.mipsOutput("addi $sp,$sp,-16");
+        pushStack.add(pushRPara);
+        if (funcLayer != 1) {
+            for (int i = 0; i < pushRPara; i++) {
+                FileStream.mipsOutput("sw $a" + i + ",-" + (i * 4 + 4) + "($sp)");
+            }
+            FileStream.mipsOutput("addi $sp,$sp,-" + (pushRPara * 4));
+        }
+        pushRPara = 0;
     }
 
     private static void push(String[] strings) {
         //TODO 区分地址和值传递
+        pushRPara++;
         String rparaName = strings[1];
         String rs;
         rPara = Parser.str2int(strings[strings.length - 1]);
@@ -784,30 +898,54 @@ public class TargetCode {
     private static void call(String funcName) {
         rPara = 0;
         funcLayer--;
-        FileStream.mipsOutput("addi $fp,$fp," + funcSymbolTable.getAddr());
-        FileStream.mipsOutput("sw $t0,-4($sp)");
-        FileStream.mipsOutput("sw $t1,-8($sp)");
-        FileStream.mipsOutput("sw $t2,-12($sp)");
-        FileStream.mipsOutput("sw $t3,-16($sp)");
-        FileStream.mipsOutput("sw $t4,-20($sp)");
-        FileStream.mipsOutput("sw $ra,-24($sp)");
-        FileStream.mipsOutput("sw $s7,-28($sp)");
-        FileStream.mipsOutput("addi $s7,$s7,16");
-        FileStream.mipsOutput("addi $sp,$sp,-28");
+        if (funcSymbolTable.getAddr() != 0) {
+            FileStream.mipsOutput("addi $fp,$fp," + funcSymbolTable.getAddr());
+        }
+        FileStream.mipsOutput("sw $ra,-4($sp)");
+
+        int notAvailable = 0;
+        for (int i = 0; i < 5; i++) {
+            if (!funcSymbolTable.isAvailable(i)) {
+                FileStream.mipsOutput("sw $t" + i + ",-" + ((notAvailable + 2) * 4) + "($sp)");
+                notAvailable++;
+            }
+        }
+        int bias = ((notAvailable + 1) * 4);
+        if (funcPara != 0) {
+            FileStream.mipsOutput("addi $s7,$s7,16");
+        }
+
+        FileStream.mipsOutput("addi $sp,$sp,-" + bias);
         FileStream.mipsOutput("jal " + funcName);
-        FileStream.mipsOutput("addi $sp,$sp,44");
-        FileStream.mipsOutput("lw $a0,-4($sp)");
-        FileStream.mipsOutput("lw $a1,-8($sp)");
-        FileStream.mipsOutput("lw $a2,-12($sp)");
-        FileStream.mipsOutput("lw $a3,-16($sp)");
-        FileStream.mipsOutput("addi $fp,$fp," + (-funcSymbolTable.getAddr()));
-        FileStream.mipsOutput("lw $t0,-20($sp)");
-        FileStream.mipsOutput("lw $t1,-24($sp)");
-        FileStream.mipsOutput("lw $t2,-28($sp)");
-        FileStream.mipsOutput("lw $t3,-32($sp)");
-        FileStream.mipsOutput("lw $t4,-36($sp)");
-        FileStream.mipsOutput("lw $ra,-40($sp)");
-        FileStream.mipsOutput("lw $s7,-44($sp)");
+
+        int callPrePush = pushStack.get(pushStack.size() - 1);
+        pushStack.remove(pushStack.size() - 1);
+        pushRPara = callPrePush;
+
+        FileStream.mipsOutput("addi $sp,$sp," + (bias + callPrePush * 4));
+        for (int i = 0; i < callPrePush; i++) {
+            FileStream.mipsOutput("lw $a" + i + ",-" + (4 * i + 4) + "($sp)");
+        }
+        FileStream.mipsOutput("lw $ra,-" + (callPrePush * 4 + 4) + "($sp)");
+        notAvailable = 0;
+        for (int i = 0; i < 5; i++) {
+            if (!funcSymbolTable.isAvailable(i)) {
+                FileStream.mipsOutput("lw $t" + i + ",-" + (callPrePush * 4 + (notAvailable + 2) * 4) + "($sp)");
+                notAvailable++;
+            }
+        }
+        if (funcPara != 0) {
+            // FileStream.mipsOutput("lw $s7,-" + (bias + callPrePush * 4) + "($sp)");
+            FileStream.mipsOutput("addi $s7,$s7,-16");
+        }
+
+        for (int i = 0; i < funcPara; i++) {
+            FileStream.mipsOutput("lw $a" + i + "," + (i * 4) + "($s7)");
+        }
+
+        if (funcSymbolTable.getAddr() != 0) {
+            FileStream.mipsOutput("addi $fp,$fp," + (-funcSymbolTable.getAddr()));
+        }
     }
 
     private static void ret(String[] strings) {
@@ -940,5 +1078,9 @@ class FuncSymbolTable {
             }
         }
         return null;
+    }
+
+    public boolean isAvailable(int tReg) {
+        return tRegister[tReg];
     }
 }

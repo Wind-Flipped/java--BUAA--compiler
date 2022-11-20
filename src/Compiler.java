@@ -10,6 +10,8 @@ public class Compiler {
             FileStream.changeOldOutput();
             System.out.println("Some Syntax errors occur!!!");
         } else {
+            FileStream.changeOptimizeOutput();
+            Constant.beginOptimization();
             FileStream.changeMipsOutput();
             TargetCode.generateMips();
             FileStream.changeOldOutput();

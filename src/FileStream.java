@@ -11,8 +11,10 @@ public class FileStream {
     private static final String ERROR = "error.txt";
     private static final String TARGET = "mips.txt";
     private static final String MIDDLETEXT = "20373625_刘运淇_优化前中间代码.txt";
+    private static final String OPTIMIZETEXT = "20373625_刘运淇_优化后中间代码.txt";
 
     private static final ArrayList<String> middleCodes = new ArrayList<>();
+    private static final ArrayList<String> optimizeCodes = new ArrayList<>();
     private static final PrintStream OUT = System.out; //保存原输出流
     private static PrintStream error_print;
 
@@ -36,6 +38,16 @@ public class FileStream {
         }
         try {
             error_print = new PrintStream(ERROR);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static PrintStream optimize_print;
+
+    static {
+        try {
+            optimize_print = new PrintStream(OPTIMIZETEXT);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -65,6 +77,10 @@ public class FileStream {
         return middleCodes;
     }
 
+    public static ArrayList<String> getOptimizeCodes() {
+        return optimizeCodes;
+    }
+
     public static void changeNewOutput() {
         System.setOut(output_print);//切换输出流
     }
@@ -79,6 +95,10 @@ public class FileStream {
 
     public static void changeMidddleOutput() {
         System.setOut(middle_print);
+    }
+
+    public static void changeOptimizeOutput() {
+        System.setOut(optimize_print);
     }
 
     public static void changeMipsOutput() {
@@ -107,6 +127,11 @@ public class FileStream {
     public static void middleCodeOutput(String str) {
         // System.setOut(middle_print);
         middleCodes.add(str);
+        System.out.println(str);
+    }
+
+    public static void optimizeOutput(String str) {
+        optimizeCodes.add(str);
         System.out.println(str);
     }
 
